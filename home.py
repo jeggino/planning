@@ -1,274 +1,197 @@
 import streamlit as st
-from supabase import create_client, Client
+from supabase import create_client
+import pandas as pd
 from datetime import date, datetime
-from dateutil.relativedelta import relativedelta
 
-# ---------- Supabase client ----------
+# -----------------------------
+# Supabase client
+# -----------------------------
 @st.cache_resource
-def get_client() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+def get_supabase():
+    return create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
+    )
 
-supabase = get_client()
+supabase = get_supabase()
 
-st.set_page_config(page_title="Assignments & Rounds", layout="wide")
+# -----------------------------
+# Database helpers
+# -----------------------------
+@st.cache_data(ttl=5)
+def get_assignments():
+    return supabase.table("assignments").select("*").execute().data
 
-st.title("Assignments planner with Supabase")
+@st.cache_data(ttl=5)
+def get_rounds():
+    return supabase.table("rounds").select(
+        "*, assignments(name, area, hourly_rate, hours_per_round, min_days_between_rounds)"
+    ).execute().data
 
-# ---------- Helpers ----------
-def fetch_assignments():
-    return supabase.table("assignments").select("*").order("inserted_at", desc=True).execute().data
+def refresh():
+    st.cache_data.clear()
 
-def fetch_rounds():
-    return supabase.table("rounds").select("*, assignments(name, area, hourly_rate, hours_per_round, min_days_between_rounds)").order("work_date", desc=True).execute().data
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.set_page_config(page_title="Work Planner", layout="wide")
+st.title("Work Planner with Supabase")
 
-def days_between(d1, d2):
-    return abs((d2 - d1).days)
+tab1, tab2, tab3 = st.tabs(["📅 Rounds", "⚙ Assignments", "💶 Earnings"])
 
-# ---------- Tabs ----------
-tab1, tab2, tab3 = st.tabs(["1) Plan rounds (calendar)", "2) Assignment settings", "3) Monthly earnings & invoice"])
-
-# =========================================================
-# TAB 2: ASSIGNMENT SETTINGS (do this first logically)
-# =========================================================
+# ============================================================
+# TAB 2 — ASSIGNMENTS
+# ============================================================
 with tab2:
-    st.header("Assignment configuration")
+    st.header("Assignment Settings")
 
-    st.subheader("Create / edit assignment")
+    assignments = get_assignments()
 
-    # For editing existing assignment
-    assignments = fetch_assignments()
-    assignment_names = ["New assignment"] + [f"{a['name']} ({a['area']})" for a in assignments]
-    selected_idx = st.selectbox("Select assignment to edit", range(len(assignment_names)), format_func=lambda i: assignment_names[i])
+    mode = st.radio("Mode", ["Create new", "Edit existing"])
 
-    editing_existing = selected_idx > 0
-    current = assignments[selected_idx - 1] if editing_existing else None
-
-    with st.form("assignment_form", clear_on_submit=not editing_existing):
-        name = st.text_input("Assignment name", value=current["name"] if current else "")
-        area = st.text_input("Area", value=current["area"] if current else "")
-        hourly_rate = st.number_input("Hourly rate (€ / hour)", min_value=0.0, step=1.0, value=float(current["hourly_rate"]) if current else 0.0)
-        hours_per_round = st.number_input("Hours per round", min_value=0.0, step=0.5, value=float(current["hours_per_round"]) if current else 0.0)
-        min_days_between_rounds = st.number_input("Min days between rounds", min_value=0, step=1, value=int(current["min_days_between_rounds"]) if current else 0)
-
-        submitted = st.form_submit_button("Save assignment")
-
-        if submitted:
-            payload = {
-                "name": name,
-                "area": area,
-                "hourly_rate": hourly_rate,
-                "hours_per_round": hours_per_round,
-                "min_days_between_rounds": int(min_days_between_rounds),
-            }
-            if editing_existing:
-                supabase.table("assignments").update(payload).eq("id", current["id"]).execute()
-                st.success("Assignment updated.")
-            else:
-                supabase.table("assignments").insert(payload).execute()
-                st.success("Assignment created.")
-
-    st.subheader("Assignments overview")
-
-    assignments = fetch_assignments()
-    if assignments:
-        st.dataframe(assignments, use_container_width=True)
-
-        # Delete assignment
-        delete_ids = [a["id"] for a in assignments]
-        delete_labels = [f"{a['name']} ({a['area']})" for a in assignments]
-        to_delete = st.selectbox("Delete assignment", ["None"] + delete_labels)
-        if to_delete != "None":
-            idx = delete_labels.index(to_delete)
-            if st.button("Confirm delete assignment"):
-                supabase.table("assignments").delete().eq("id", delete_ids[idx]).execute()
-                st.warning("Assignment deleted (and its rounds).")
+    if mode == "Edit existing" and assignments:
+        selected = st.selectbox(
+            "Select assignment",
+            assignments,
+            format_func=lambda a: f"{a['name']} ({a['area']})"
+        )
     else:
-        st.info("No assignments yet. Create one above.")
+        selected = None
 
-# =========================================================
-# TAB 1: PLAN ROUNDS (CALENDAR-LIKE)
-# =========================================================
+    name = st.text_input("Name", value=selected["name"] if selected else "")
+    area = st.text_input("Area", value=selected["area"] if selected else "")
+    hourly_rate = st.number_input("Hourly rate (€)", value=float(selected["hourly_rate"]) if selected else 0.0)
+    hours_per_round = st.number_input("Hours per round", value=float(selected["hours_per_round"]) if selected else 0.0)
+    min_days = st.number_input("Min days between rounds", value=int(selected["min_days_between_rounds"]) if selected else 0)
+
+    if st.button("Save assignment"):
+        data = {
+            "name": name,
+            "area": area,
+            "hourly_rate": hourly_rate,
+            "hours_per_round": hours_per_round,
+            "min_days_between_rounds": min_days
+        }
+
+        if selected:
+            supabase.table("assignments").update(data).eq("id", selected["id"]).execute()
+            st.success("Updated!")
+        else:
+            supabase.table("assignments").insert(data).execute()
+            st.success("Created!")
+
+        refresh()
+
+    st.subheader("All assignments")
+    st.dataframe(assignments)
+
+# ============================================================
+# TAB 1 — ROUNDS
+# ============================================================
 with tab1:
-    st.header("Plan your rounds")
+    st.header("Plan Your Rounds")
 
-    assignments = fetch_assignments()
+    assignments = get_assignments()
     if not assignments:
-        st.warning("You need at least one assignment (configure it in tab 2).")
+        st.warning("Create an assignment first.")
     else:
-        # Form to add / edit a round
-        st.subheader("Add a round")
-
-        assignment_options = {f"{a['name']} ({a['area']})": a for a in assignments}
-        assignment_label = st.selectbox("Assignment", list(assignment_options.keys()))
-        selected_assignment = assignment_options[assignment_label]
+        assignment = st.selectbox(
+            "Assignment",
+            assignments,
+            format_func=lambda a: f"{a['name']} ({a['area']})"
+        )
 
         work_date = st.date_input("Work date", value=date.today())
-        kind = st.text_input("Kind of assignment / shift (e.g. morning, night, etc.)", value="round")
+        kind = st.text_input("Kind (morning, night, etc.)")
 
         if st.button("Add round"):
             supabase.table("rounds").insert({
-                "assignment_id": selected_assignment["id"],
+                "assignment_id": assignment["id"],
                 "work_date": work_date.isoformat(),
-                "kind": kind,
+                "kind": kind
             }).execute()
-            st.success("Round added.")
+            st.success("Round added!")
+            refresh()
 
-        st.subheader("Calendar-like overview")
+        st.subheader("All rounds")
+        rounds = get_rounds()
 
-        rounds = fetch_rounds()
         if rounds:
-            # Show as table grouped by month
-            df_rows = []
-            for r in rounds:
-                a = r["assignments"]
-                df_rows.append({
+            df = pd.DataFrame([
+                {
                     "id": r["id"],
                     "date": r["work_date"],
-                    "assignment": a["name"],
-                    "area": a["area"],
+                    "assignment": r["assignments"]["name"],
+                    "area": r["assignments"]["area"],
                     "kind": r["kind"],
-                    "hours": float(a["hours_per_round"]),
-                    "hourly_rate": float(a["hourly_rate"]),
-                    "min_days_between_rounds": int(a["min_days_between_rounds"]),
-                })
+                    "hours": r["assignments"]["hours_per_round"],
+                    "rate": r["assignments"]["hourly_rate"],
+                    "min_days": r["assignments"]["min_days_between_rounds"]
+                }
+                for r in rounds
+            ])
 
-            import pandas as pd
-            df = pd.DataFrame(df_rows)
             df["date"] = pd.to_datetime(df["date"])
             df = df.sort_values("date")
 
-            # Simple month filter
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                month_ref = st.date_input("Reference month", value=date.today().replace(day=1))
-            with col_m2:
-                show_month = st.checkbox("Show only selected month", value=True)
+            st.dataframe(df)
 
-            if show_month:
-                df_month = df[(df["date"].dt.month == month_ref.month) & (df["date"].dt.year == month_ref.year)]
-            else:
-                df_month = df
-
-            st.dataframe(df_month, use_container_width=True)
-
-            # Edit / delete a round
-            st.subheader("Edit / delete rounds")
-
-            round_labels = [f"{row['date'].date()} - {row['assignment']} ({row['kind']})" for _, row in df.iterrows()]
-            round_ids = list(df["id"])
-            selected_round_label = st.selectbox("Select round", round_labels)
-            idx = round_labels.index(selected_round_label)
-            selected_round_id = round_ids[idx]
-            selected_round_row = df.iloc[idx]
-
-            # Edit date and kind
-            new_date = st.date_input("New date", value=selected_round_row["date"].date(), key="edit_date")
-            new_kind = st.text_input("New kind", value=selected_round_row["kind"], key="edit_kind")
-
-            col_e1, col_e2 = st.columns(2)
-            with col_e1:
-                if st.button("Save changes"):
-                    supabase.table("rounds").update({
-                        "work_date": new_date.isoformat(),
-                        "kind": new_kind,
-                    }).eq("id", selected_round_id).execute()
-                    st.success("Round updated.")
-            with col_e2:
-                if st.button("Delete round"):
-                    supabase.table("rounds").delete().eq("id", selected_round_id).execute()
-                    st.warning("Round deleted.")
-
-            # Warning about min days between rounds
-            st.subheader("Rounds spacing warnings")
-
-            # For each assignment, check consecutive rounds
+            # Warning system
+            st.subheader("Warnings")
             warnings = []
-            for assignment in assignments:
-                a_id = assignment["id"]
-                a_name = assignment["name"]
-                min_days = int(assignment["min_days_between_rounds"])
-                if min_days <= 0:
-                    continue
-
-                a_rounds = df[df["assignment"] == a_name].sort_values("date")
-                prev_date = None
-                for _, row in a_rounds.iterrows():
-                    if prev_date is not None:
-                        d = days_between(prev_date.date(), row["date"].date())
-                        if d < min_days:
-                            warnings.append(f"{a_name}: only {d} days between {prev_date.date()} and {row['date'].date()} (min {min_days}).")
-                    prev_date = row["date"]
+            for a in df["assignment"].unique():
+                subset = df[df["assignment"] == a].sort_values("date")
+                prev = None
+                for _, row in subset.iterrows():
+                    if prev is not None:
+                        diff = (row["date"] - prev).days
+                        if diff < row["min_days"]:
+                            warnings.append(
+                                f"{a}: Only {diff} days between {prev.date()} and {row['date'].date()} (min {row['min_days']})"
+                            )
+                    prev = row["date"]
 
             if warnings:
                 for w in warnings:
                     st.error(w)
             else:
-                st.success("All rounds respect the minimum days between rounds.")
-        else:
-            st.info("No rounds yet. Add one above.")
+                st.success("All rounds respect minimum spacing.")
 
-# =========================================================
-# TAB 3: MONTHLY EARNINGS & INVOICE
-# =========================================================
+# ============================================================
+# TAB 3 — EARNINGS
+# ============================================================
 with tab3:
-    st.header("Monthly earnings and invoice")
+    st.header("Monthly Earnings")
 
-    rounds = fetch_rounds()
+    rounds = get_rounds()
     if not rounds:
         st.info("No rounds yet.")
     else:
-        import pandas as pd
+        df = pd.DataFrame([
+            {
+                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
+                "assignment": r["assignments"]["name"],
+                "hours": r["assignments"]["hours_per_round"],
+                "rate": r["assignments"]["hourly_rate"],
+                "amount": r["assignments"]["hours_per_round"] * r["assignments"]["hourly_rate"]
+            }
+            for r in rounds
+        ])
 
-        rows = []
-        for r in rounds:
-            a = r["assignments"]
-            work_date = datetime.strptime(r["work_date"], "%Y-%m-%d").date()
-            hours = float(a["hours_per_round"])
-            rate = float(a["hourly_rate"])
-            amount = hours * rate
-            rows.append({
-                "date": work_date,
-                "assignment": a["name"],
-                "area": a["area"],
-                "kind": r["kind"],
-                "hours": hours,
-                "rate": rate,
-                "amount": amount,
-            })
+        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
 
-        df = pd.DataFrame(rows)
-        df["year_month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
+        month = st.selectbox("Select month", sorted(df["month"].unique()))
 
-        # Select month
-        months = sorted(df["year_month"].unique())
-        selected_month = st.selectbox("Select month", months, index=len(months) - 1)
+        df_month = df[df["month"] == month]
 
-        df_month = df[df["year_month"] == selected_month]
-        total_hours = df_month["hours"].sum()
-        total_amount = df_month["amount"].sum()
-        btw = total_amount * 0.21
-        total_with_btw = total_amount + btw
+        subtotal = df_month["amount"].sum()
+        btw = subtotal * 0.21
+        total = subtotal + btw
 
-        st.subheader(f"Invoice preview for {selected_month}")
-        st.write("Detailed rounds:")
-        st.dataframe(df_month[["date", "assignment", "area", "kind", "hours", "rate", "amount"]], use_container_width=True)
+        st.metric("Subtotal", f"€ {subtotal:,.2f}")
+        st.metric("BTW 21%", f"€ {btw:,.2f}")
+        st.metric("Total", f"€ {total:,.2f}")
 
-        st.markdown("#### Summary")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total hours", f"{total_hours:.2f}")
-        col2.metric("Subtotal (€)", f"{total_amount:,.2f}")
-        col3.metric("BTW 21% (€)", f"{btw:,.2f}")
-        col4.metric("Total incl. BTW (€)", f"{total_with_btw:,.2f}")
+        st.dataframe(df_month)
 
-        st.markdown("#### Invoice text (copy-paste)")
-        invoice_text = f"""
-Invoice month: {selected_month}
 
-Total hours: {total_hours:.2f}
-Subtotal (excl. BTW): € {total_amount:,.2f}
-BTW 21%: € {btw:,.2f}
-Total (incl. BTW): € {total_with_btw:,.2f}
-"""
-        st.text_area("Invoice", value=invoice_text, height=150)
