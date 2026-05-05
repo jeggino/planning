@@ -37,22 +37,37 @@ def refresh():
     st.cache_data.clear()
 
 # ---------------------------------------------------------
-# Layout & navigation
+# Sidebar Navigation (Grouped)
 # ---------------------------------------------------------
 st.set_page_config(page_title="Work Planner", layout="wide")
 st.sidebar.title("Navigation")
 
-page = st.sidebar.radio(
-    "Go to:",
-    ["Assignments", "Areas", "Log Work Day", "Rounds Overview & Plot", "Monthly Earnings"]
+menu = st.sidebar.selectbox(
+    "Choose section",
+    [
+        "Work Setup",
+        "Work Activity",
+        "Monthly Earnings"
+    ]
 )
+
+subpage = None
+
+if menu == "Work Setup":
+    subpage = st.sidebar.radio("Setup", ["Assignments", "Areas"])
+
+elif menu == "Work Activity":
+    subpage = st.sidebar.radio("Activity", ["Log Work Day", "Rounds Overview & Plot"])
+
+else:
+    subpage = "Monthly Earnings"
 
 st.title("Work Planner")
 
 # ---------------------------------------------------------
 # PAGE — ASSIGNMENTS
 # ---------------------------------------------------------
-if page == "Assignments":
+if subpage == "Assignments":
     st.header("Assignment Setup")
 
     assignments = get_assignments()
@@ -85,15 +100,15 @@ if page == "Assignments":
     else:
         hours_per_round = st.number_input(
             "Hours per round",
-            value=float(selected["hours_per_round"]) if selected and selected["type"] == "Fieldwork" and selected["hours_per_round"] is not None else 0.0
+            value=float(selected["hours_per_round"]) if selected and selected["type"] == "Fieldwork" else 0.0
         )
         min_days = st.number_input(
             "Minimum days between rounds",
-            value=int(selected["min_days_between_rounds"]) if selected and selected["type"] == "Fieldwork" and selected["min_days_between_rounds"] is not None else 0
+            value=int(selected["min_days_between_rounds"]) if selected and selected["type"] == "Fieldwork" else 0
         )
         hourly_rate = st.number_input(
             "Hourly rate (€)",
-            value=float(selected["hourly_rate"]) if selected and selected["type"] == "Fieldwork" else 0.0
+            value=float(selected["hourly_rate"]) if selected else 0.0
         )
 
     if st.button("Save assignment"):
@@ -116,8 +131,7 @@ if page == "Assignments":
 
     st.subheader("All assignments")
     if assignments:
-        df_a = pd.DataFrame(assignments)
-        df_a = df_a.drop(columns=["id", "created_at"], errors="ignore")
+        df_a = pd.DataFrame(assignments).drop(columns=["id", "created_at"], errors="ignore")
         st.dataframe(df_a, use_container_width=True)
     else:
         st.info("No assignments yet.")
@@ -128,13 +142,13 @@ if page == "Assignments":
             if st.button("Confirm delete assignment"):
                 a_id = next(a["id"] for a in assignments if f"{a['name']} ({a['type']})" == del_sel)
                 supabase.table("assignments").delete().eq("id", a_id).execute()
-                st.warning("Assignment deleted (and related rounds).")
+                st.warning("Assignment deleted.")
                 refresh()
 
 # ---------------------------------------------------------
 # PAGE — AREAS
 # ---------------------------------------------------------
-elif page == "Areas":
+elif subpage == "Areas":
     st.header("Area Setup")
 
     areas = get_areas()
@@ -166,8 +180,7 @@ elif page == "Areas":
 
     st.subheader("All areas")
     if areas:
-        df_ar = pd.DataFrame(areas)
-        df_ar = df_ar.drop(columns=["id", "created_at"], errors="ignore")
+        df_ar = pd.DataFrame(areas).drop(columns=["id", "created_at"], errors="ignore")
         st.dataframe(df_ar, use_container_width=True)
     else:
         st.info("No areas yet.")
@@ -178,13 +191,13 @@ elif page == "Areas":
             if st.button("Confirm delete area"):
                 a_id = next(a["id"] for a in areas if a["name"] == del_sel)
                 supabase.table("areas").delete().eq("id", a_id).execute()
-                st.warning("Area deleted (related rounds will have area set to null).")
+                st.warning("Area deleted.")
                 refresh()
 
 # ---------------------------------------------------------
 # PAGE — LOG WORK DAY
 # ---------------------------------------------------------
-elif page == "Log Work Day":
+elif subpage == "Log Work Day":
     st.header("Log a Day of Work")
 
     assignments = get_assignments()
@@ -251,7 +264,7 @@ elif page == "Log Work Day":
                             "assignment_id": assignment["id"],
                             "area_id": area["id"],
                             "work_date": work_date.isoformat(),
-                            "hours_worked": None  # fixed by assignment.hours_per_round
+                            "hours_worked": None
                         }).execute()
                         st.success("Fieldwork day saved.")
                         refresh()
@@ -259,7 +272,7 @@ elif page == "Log Work Day":
 # ---------------------------------------------------------
 # PAGE — ROUNDS OVERVIEW & PLOT
 # ---------------------------------------------------------
-elif page == "Rounds Overview & Plot":
+elif subpage == "Rounds Overview & Plot":
     st.header("Work Activity Overview")
 
     rounds = get_rounds()
@@ -376,7 +389,7 @@ elif page == "Rounds Overview & Plot":
 # ---------------------------------------------------------
 # PAGE — MONTHLY EARNINGS
 # ---------------------------------------------------------
-elif page == "Monthly Earnings":
+elif subpage == "Monthly Earnings":
     st.header("Monthly Earnings")
 
     rounds = get_rounds()
@@ -457,6 +470,7 @@ elif page == "Monthly Earnings":
         )
 
         st.altair_chart(chart, use_container_width=True)
+
 
 
 
