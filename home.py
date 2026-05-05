@@ -270,20 +270,27 @@ elif page == "Rounds Overview & Plot":
             for r in rounds
         ])
 
-        st.subheader("Table")
-        st.dataframe(df)
+        # -------------------------------
+        # EDIT / DELETE SECTION
+        # -------------------------------
+        st.subheader("Edit or Delete a Round")
 
-        # Edit / delete
-        st.subheader("Edit / Delete rounds")
-
-        labels = [f"{row['date']} - {row['assignment']} ({row['type']})" for _, row in df.iterrows()]
+        labels = [
+            f"{row['date']} — {row['assignment']} ({row['type']})"
+            for _, row in df.iterrows()
+        ]
         selected_label = st.selectbox("Select round", labels)
         idx = labels.index(selected_label)
         row = df.iloc[idx]
 
         new_date = st.date_input("New date", value=row["date"], key="edit_date")
+
         if row["type"] == "Deskwork":
-            new_hours = st.number_input("New hours worked", value=float(row["hours_worked"] or 0.0), key="edit_hours")
+            new_hours = st.number_input(
+                "New hours worked",
+                value=float(row["hours_worked"] or 0.0),
+                key="edit_hours"
+            )
         else:
             new_hours = None
 
@@ -293,33 +300,41 @@ elif page == "Rounds Overview & Plot":
                 update_data = {"work_date": new_date.isoformat()}
                 if row["type"] == "Deskwork":
                     update_data["hours_worked"] = new_hours
+
                 supabase.table("rounds").update(update_data).eq("id", row["id"]).execute()
                 st.success("Round updated.")
                 refresh()
+
         with col2:
             if st.button("Delete round"):
                 supabase.table("rounds").delete().eq("id", row["id"]).execute()
                 st.warning("Round deleted.")
                 refresh()
 
-        st.subheader("Scatter plot: date vs type")
+        st.markdown("---")  # Clear visual separation
+
+        # -------------------------------
+        # SCATTER PLOT
+        # -------------------------------
+        st.subheader("Work Activity Plot")
 
         df_plot = df.copy()
         df_plot["date"] = pd.to_datetime(df_plot["date"])
 
         chart = (
             alt.Chart(df_plot)
-            .mark_circle(size=80)
+            .mark_circle(size=120)
             .encode(
-                x="date:T",
-                y=alt.Y("type:N", title="Assignment type"),
-                color="assignment:N",
+                x=alt.X("date:T", title="Date"),
+                y=alt.Y("assignment:N", title="Assignment"),
+                color="type:N",
                 tooltip=["date:T", "assignment:N", "type:N", "area:N"]
             )
-            .properties(height=400)
+            .properties(height=450)
         )
 
         st.altair_chart(chart, use_container_width=True)
+
 
 # ---------------------------------------------------------
 # PAGE — MONTHLY EARNINGS
@@ -343,6 +358,7 @@ elif page == "Monthly Earnings":
             for r in rounds
         ])
 
+        # Compute earnings
         def compute_amount(row):
             if row["type"] == "Deskwork":
                 return (row["hours_worked"] or 0) * row["rate"]
@@ -356,6 +372,7 @@ elif page == "Monthly Earnings":
 
         df_month = df[df["month"] == month]
 
+        # Totals
         subtotal = df_month["amount"].sum()
         vat = subtotal * 0.21
         total = subtotal + vat
@@ -364,8 +381,48 @@ elif page == "Monthly Earnings":
         st.metric("VAT 21%", f"€ {vat:,.2f}")
         st.metric("Total", f"€ {total:,.2f}")
 
-        st.subheader("Details")
-        st.dataframe(df_month[["date", "assignment", "type", "amount"]])
+        st.markdown("---")
+
+        # -------------------------------
+        # TOTAL PER ASSIGNMENT
+        # -------------------------------
+        st.subheader("Total per Assignment")
+
+        totals = (
+            df_month.groupby("assignment")["amount"]
+            .sum()
+            .reset_index()
+            .sort_values("amount", ascending=False)
+        )
+
+        st.bar_chart(
+            data=totals,
+            x="assignment",
+            y="amount",
+            use_container_width=True
+        )
+
+        st.markdown("---")
+
+        # -------------------------------
+        # STACKED BAR CHART BY TYPE
+        # -------------------------------
+        st.subheader("Monthly Earnings by Type (Stacked)")
+
+        chart = (
+            alt.Chart(df_month)
+            .mark_bar()
+            .encode(
+                x=alt.X("assignment:N", title="Assignment"),
+                y=alt.Y("amount:Q", title="Earnings (€)"),
+                color=alt.Color("type:N", title="Type"),
+                tooltip=["assignment:N", "type:N", "amount:Q"]
+            )
+            .properties(height=450)
+        )
+
+        st.altair_chart(chart, use_container_width=True)
+
 
 
 
