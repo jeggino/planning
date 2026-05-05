@@ -3,6 +3,43 @@ from supabase import create_client
 import pandas as pd
 from datetime import date, datetime
 import altair as alt
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import io
+
+# ---------------------------------------------------------
+# PASSWORD PROTECTION
+# ---------------------------------------------------------
+def check_password():
+    st.session_state["authenticated"] = False
+
+    if "password_entered" not in st.session_state:
+        st.session_state["password_entered"] = ""
+
+    def password_entered():
+        if st.session_state["password_entered"] == st.secrets["PASSWORD"]:
+            st.session_state["authenticated"] = True
+        else:
+            st.error("Incorrect password")
+
+    if not st.session_state.get("authenticated", False):
+        st.text_input("Enter password", type="password", key="password_entered", on_change=password_entered)
+        st.stop()
+
+check_password()
+
+# ---------------------------------------------------------
+# DARK MODE CSS
+# ---------------------------------------------------------
+dark_css = """
+<style>
+body {
+    background-color: #0e1117;
+    color: #fafafa;
+}
+</style>
+"""
+st.markdown(dark_css, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # Supabase client
@@ -93,18 +130,18 @@ if subpage == "Assignments":
     if assignment_type == "Deskwork":
         hourly_rate = st.number_input(
             "Hourly rate (€)",
-            value=float(selected["hourly_rate"]) if selected and selected["type"] == "Deskwork" else 0.0
+            value=float(selected["hourly_rate"]) if selected else 0.0
         )
         hours_per_round = None
         min_days = None
     else:
         hours_per_round = st.number_input(
             "Hours per round",
-            value=float(selected["hours_per_round"]) if selected and selected["type"] == "Fieldwork" else 0.0
+            value=float(selected["hours_per_round"]) if selected else 0.0
         )
         min_days = st.number_input(
             "Minimum days between rounds",
-            value=int(selected["min_days_between_rounds"]) if selected and selected["type"] == "Fieldwork" else 0
+            value=int(selected["min_days_between_rounds"]) if selected else 0
         )
         hourly_rate = st.number_input(
             "Hourly rate (€)",
@@ -133,8 +170,6 @@ if subpage == "Assignments":
     if assignments:
         df_a = pd.DataFrame(assignments).drop(columns=["id", "created_at"], errors="ignore")
         st.dataframe(df_a, use_container_width=True)
-    else:
-        st.info("No assignments yet.")
 
     if assignments:
         del_sel = st.selectbox("Delete assignment", ["None"] + [f"{a['name']} ({a['type']})" for a in assignments])
@@ -182,8 +217,6 @@ elif subpage == "Areas":
     if areas:
         df_ar = pd.DataFrame(areas).drop(columns=["id", "created_at"], errors="ignore")
         st.dataframe(df_ar, use_container_width=True)
-    else:
-        st.info("No areas yet.")
 
     if areas:
         del_sel = st.selectbox("Delete area", ["None"] + [a["name"] for a in areas])
@@ -296,24 +329,52 @@ elif subpage == "Rounds Overview & Plot":
         df["date"] = pd.to_datetime(df["date"])
 
         # -------------------------------
+        # FILTERS
+        # -------------------------------
+        st.subheader("Filters")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            date_filter = st.date_input("Filter by date", value=None)
+
+        with col2:
+            assignment_filter = st.multiselect("Filter by assignment", df["assignment"].unique())
+
+        with col3:
+            area_filter = st.multiselect("Filter by area", df["area"].dropna().unique())
+
+        df_filtered = df.copy()
+
+        if date_filter:
+            df_filtered = df_filtered[df_filtered["date"].dt.date == date_filter]
+
+        if assignment_filter:
+            df_filtered = df_filtered[df_filtered["assignment"].isin(assignment_filter)]
+
+        if area_filter:
+            df_filtered = df_filtered[df_filtered["area"].isin(area_filter)]
+
+        # -------------------------------
         # DESKWORK PLOT
         # -------------------------------
         st.subheader("Deskwork Activity")
 
-        df_desk = df[df["type"] == "Deskwork"]
+        df_desk = df_filtered[df_filtered["type"] == "Deskwork"]
 
         if df_desk.empty:
-            st.info("No deskwork logged yet.")
+            st.info("No deskwork logged.")
         else:
             chart_desk = (
                 alt.Chart(df_desk)
-                .mark_circle(size=120)
+                .mark_circle(size=150)
                 .encode(
                     x=alt.X("date:T", title="Date"),
                     y=alt.Y("assignment:N", title="Assignment"),
-                    color=alt.Color("assignment:N", title="Assignment"),
+                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="tableau20")),
                     tooltip=["date:T", "assignment:N", "hours_worked:Q"]
                 )
+                .interactive()
                 .properties(height=350)
             )
             st.altair_chart(chart_desk, use_container_width=True)
@@ -325,20 +386,21 @@ elif subpage == "Rounds Overview & Plot":
         # -------------------------------
         st.subheader("Fieldwork Activity")
 
-        df_field = df[df["type"] == "Fieldwork"]
+        df_field = df_filtered[df_filtered["type"] == "Fieldwork"]
 
         if df_field.empty:
-            st.info("No fieldwork logged yet.")
+            st.info("No fieldwork logged.")
         else:
             chart_field = (
                 alt.Chart(df_field)
-                .mark_circle(size=120)
+                .mark_circle(size=150)
                 .encode(
                     x=alt.X("date:T", title="Date"),
                     y=alt.Y("area:N", title="Area"),
-                    color=alt.Color("assignment:N", title="Assignment"),
+                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="category20b")),
                     tooltip=["date:T", "assignment:N", "area:N"]
                 )
+                .interactive()
                 .properties(height=350)
             )
             st.altair_chart(chart_field, use_container_width=True)
@@ -463,13 +525,25 @@ elif subpage == "Monthly Earnings":
             .encode(
                 x=alt.X("assignment:N", title="Assignment"),
                 y=alt.Y("amount:Q", title="Earnings (€)"),
-                color=alt.Color("type:N", title="Type"),
+                color=alt.Color("type:N", title="Type", scale=alt.Scale(scheme="category20")),
                 tooltip=["assignment:N", "type:N", "amount:Q"]
             )
+            .interactive()
             .properties(height=450)
         )
 
         st.altair_chart(chart, use_container_width=True)
+
+        st.markdown("---")
+
+        # -------------------------------
+        # PDF EXPORT
+        # -------------------------------
+        st.subheader("Export Invoice as PDF")
+
+        if st.button("Generate PDF"):
+            buffer = io.BytesIO()
+            pdf = canvas.Canvas(buffer
 
 
 
