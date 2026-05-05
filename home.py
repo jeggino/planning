@@ -540,10 +540,38 @@ elif subpage == "Monthly Earnings":
         # PDF EXPORT
         # -------------------------------
         st.subheader("Export Invoice as PDF")
-
+        
         if st.button("Generate PDF"):
             buffer = io.BytesIO()
-            pdf = canvas.Canvas(buffer
+            pdf = canvas.Canvas(buffer, pagesize=A4)
+        
+            pdf.setFont("Helvetica-Bold", 16)
+            pdf.drawString(50, 800, f"Invoice — {month}")
+        
+            pdf.setFont("Helvetica", 12)
+            pdf.drawString(50, 770, f"Subtotal: € {subtotal:,.2f}")
+            pdf.drawString(50, 750, f"VAT 21%: € {vat:,.2f}")
+            pdf.drawString(50, 730, f"Total: € {total:,.2f}")
+        
+            pdf.drawString(50, 700, "Breakdown per assignment:")
+        
+            y = 680
+            for _, row in totals.iterrows():
+                pdf.drawString(60, y, f"{row['assignment']}: € {row['amount']:,.2f}")
+                y -= 20
+        
+            pdf.showPage()
+            pdf.save()
+        
+            buffer.seek(0)
+        
+            st.download_button(
+                label="Download PDF Invoice",
+                data=buffer,
+                file_name=f"invoice_{month}.pdf",
+                mime="application/pdf"
+            )
+
 
 
 
