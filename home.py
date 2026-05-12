@@ -466,6 +466,7 @@ elif subpage == "Monthly Earnings":
                 "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
                 "assignment": r["assignments"]["name"],
                 "type": r["assignments"]["type"],
+                "area": r["areas"]["name"] if r["areas"] else None,
                 "hours_worked": r["hours_worked"],
                 "hours_per_round": r["assignments"]["hours_per_round"],
                 "rate": r["assignments"]["hourly_rate"],
@@ -473,6 +474,7 @@ elif subpage == "Monthly Earnings":
             for r in rounds
         ])
 
+        # Compute amount
         def compute_amount(row):
             if row["type"] == "Deskwork":
                 return (row["hours_worked"] or 0) * row["rate"]
@@ -482,10 +484,22 @@ elif subpage == "Monthly Earnings":
         df["amount"] = df.apply(compute_amount, axis=1)
         df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
 
-        month = st.selectbox("Select month", sorted(df["month"].unique()))
+        # ---------------------------------------------------------
+        # MULTI-MONTH SELECTION
+        # ---------------------------------------------------------
+        st.subheader("Select Month(s)")
+        months = sorted(df["month"].unique())
+        selected_months = st.multiselect("Months", months, default=months[-1])
 
-        df_month = df[df["month"] == month]
+        if not selected_months:
+            st.info("Select at least one month.")
+            st.stop()
 
+        df_month = df[df["month"].isin(selected_months)]
+
+        # ---------------------------------------------------------
+        # TOTALS
+        # ---------------------------------------------------------
         subtotal = df_month["amount"].sum()
         vat = subtotal * 0.21
         total = subtotal + vat
@@ -496,10 +510,49 @@ elif subpage == "Monthly Earnings":
 
         st.markdown("---")
 
-        # -------------------------------
-        # TOTAL PER ASSIGNMENT
-        # -------------------------------
-        st.subheader("Total per Assignment")
+        # ---------------------------------------------------------
+        # HOURS PER ASSIGNMENT
+        # ---------------------------------------------------------
+        st.subheader("Hours per Assignment")
+
+        df_month["hours_calc"] = df_month.apply(
+            lambda r: r["hours_worked"] if r["type"] == "Deskwork" else r["hours_per_round"],
+            axis=1
+        )
+
+        hours_assignment = (
+            df_month.groupby("assignment")["hours_calc"]
+            .sum()
+            .reset_index()
+            .sort_values("hours_calc", ascending=False)
+        )
+
+        st.dataframe(hours_assignment)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # HOURS PER AREA
+        # ---------------------------------------------------------
+        st.subheader("Hours per Area")
+
+        df_area = df_month.dropna(subset=["area"])
+
+        hours_area = (
+            df_area.groupby("area")["hours_calc"]
+            .sum()
+            .reset_index()
+            .sort_values("hours_calc", ascending=False)
+        )
+
+        st.dataframe(hours_area)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # TOTAL PER ASSIGNMENT (EARNINGS)
+        # ---------------------------------------------------------
+        st.subheader("Total Earnings per Assignment")
 
         totals = (
             df_month.groupby("assignment")["amount"]
@@ -517,9 +570,9 @@ elif subpage == "Monthly Earnings":
 
         st.markdown("---")
 
-        # -------------------------------
+        # ---------------------------------------------------------
         # STACKED BAR CHART BY TYPE
-        # -------------------------------
+        # ---------------------------------------------------------
         st.subheader("Monthly Earnings by Type (Stacked)")
 
         chart = (
@@ -528,7 +581,7 @@ elif subpage == "Monthly Earnings":
             .encode(
                 x=alt.X("assignment:N", title="Assignment"),
                 y=alt.Y("amount:Q", title="Earnings (€)"),
-                color=alt.Color("type:N", title="Type", scale=alt.Scale(scheme="category20")),
+                color=alt.Color("type:N", title="Type", scale=alt.Scale(scheme="category10")),
                 tooltip=["assignment:N", "type:N", "amount:Q"]
             )
             .interactive()
@@ -539,48 +592,54 @@ elif subpage == "Monthly Earnings":
 
         st.markdown("---")
 
-        # -------------------------------
+        # ---------------------------------------------------------
         # PDF EXPORT
-        # -------------------------------
+        # ---------------------------------------------------------
         st.subheader("Export Invoice as PDF")
-        
+
         if st.button("Generate PDF"):
             buffer = io.BytesIO()
             pdf = canvas.Canvas(buffer, pagesize=A4)
-        
+
             pdf.setFont("Helvetica-Bold", 16)
-            pdf.drawString(50, 800, f"Invoice — {month}")
-        
+            pdf.drawString(50, 800, f"Invoice — {', '.join(selected_months)}")
+
             pdf.setFont("Helvetica", 12)
             pdf.drawString(50, 770, f"Subtotal: € {subtotal:,.2f}")
             pdf.drawString(50, 750, f"VAT 21%: € {vat:,.2f}")
             pdf.drawString(50, 730, f"Total: € {total:,.2f}")
-        
-            pdf.drawString(50, 700, "Breakdown per assignment:")
-        
+
+            # Earnings per assignment
+            pdf.drawString(50, 700, "Earnings per assignment:")
             y = 680
             for _, row in totals.iterrows():
                 pdf.drawString(60, y, f"{row['assignment']}: € {row['amount']:,.2f}")
-                y -= 20
-        
+                y -= 18
+
+            # Hours per assignment
+            y -= 10
+            pdf.drawString(50, y, "Hours per assignment:")
+            y -= 20
+            for _, row in hours_assignment.iterrows():
+                pdf.drawString(60, y, f"{row['assignment']}: {row['hours_calc']:.2f} hours")
+                y -= 18
+
+            # Hours per area
+            y -= 10
+            pdf.drawString(50, y, "Hours per area:")
+            y -= 20
+            for _, row in hours_area.iterrows():
+                pdf.drawString(60, y, f"{row['area']}: {row['hours_calc']:.2f} hours")
+                y -= 18
+
             pdf.showPage()
             pdf.save()
-        
+
             buffer.seek(0)
-        
+
             st.download_button(
                 label="Download PDF Invoice",
                 data=buffer,
-                file_name=f"invoice_{month}.pdf",
+                file_name=f"invoice_{'_'.join(selected_months)}.pdf",
                 mime="application/pdf"
             )
-
-
-
-
-
-
-
-
-
-
