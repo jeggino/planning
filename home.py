@@ -585,117 +585,170 @@ elif subpage == "Monthly Earnings":
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # PDF EXPORT (MULTI-PAGE)
+        # PDF EXPORT (2-PAGE, GREEN PROFESSIONAL LAYOUT)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
 
-        company = st.text_input("Company name")
-        sofi = st.text_input("SOFI number")
-        bank = st.text_input("Bank account (IBAN)")
+        name = st.text_input("Naam")
+        address = st.text_input("Adres")
+        postcode = st.text_input("Postcode")
+        stad = st.text_input("Stad")
+        mobile = st.text_input("Mobiel")
+        mail = st.text_input("E-mail")
+        kvk = st.text_input("KvK nummer")
+        btw = st.text_input("BTW nummer")
+        iban = st.text_input("IBAN")
 
         if st.button("Generate PDF"):
-            if not company or not sofi or not bank:
-                st.error("Please fill in company name, SOFI number, and bank account.")
+            missing = [
+                label for label, value in [
+                    ("Naam", name),
+                    ("Adres", address),
+                    ("Postcode", postcode),
+                    ("Stad", stad),
+                    ("Mobiel", mobile),
+                    ("E-mail", mail),
+                    ("KvK nummer", kvk),
+                    ("BTW nummer", btw),
+                    ("IBAN", iban),
+                ] if not value
+            ]
+            if missing:
+                st.error("Vul alle velden in: " + ", ".join(missing))
                 st.stop()
+
+            today = datetime.today()
+            factuurdatum = today.strftime("%d-%m-%Y")
+            uniek_factuurnummer = today.strftime("%Y%m%d-%H%M%S")
 
             buffer = io.BytesIO()
             pdf = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
 
             # ---------------------------------------------------------
-            # PAGE 1: SUMMARY + COMPANY INFO
+            # PAGE 1: GREEN LAYOUT + HEADER + ASSIGNMENT OVERVIEW + TOTALS
             # ---------------------------------------------------------
-            pdf.setFont("Helvetica-Bold", 16)
-            pdf.drawString(50, height - 50, f"Invoice — {', '.join(selected_months)}")
+            from reportlab.lib import colors
 
-            pdf.setFont("Helvetica", 12)
-            pdf.drawString(50, height - 90, f"Company: {company}")
-            pdf.drawString(50, height - 110, f"SOFI: {sofi}")
-            pdf.drawString(50, height - 130, f"Bank: {bank}")
+            # Green sidebar
+            pdf.setFillColorRGB(0.0, 0.45, 0.0)
+            pdf.rect(0, 0, 60, height, fill=1, stroke=0)
 
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(50, height - 170, f"Subtotal: € {subtotal:,.2f}")
-            pdf.drawString(50, height - 190, f"VAT 21%: € {vat:,.2f}")
-            pdf.drawString(50, height - 210, f"Total: € {total:,.2f}")
+            # Light header bar
+            pdf.setFillColorRGB(0.9, 0.97, 0.9)
+            pdf.rect(60, height - 80, width - 60, 80, fill=1, stroke=0)
 
-            pdf.showPage()
+            pdf.setFillColor(colors.black)
+            pdf.setFont("Helvetica-Bold", 18)
+            pdf.drawString(70, height - 50, "Factuur")
 
-            # ---------------------------------------------------------
-            # PAGE 2: WAGES + HOURS + EARNINGS (TOGETHER)
-            # ---------------------------------------------------------
-            pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(50, height - 50, "Assignment Overview")
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(70, height - 70, f"Factuurnummer: {uniek_factuurnummer}")
+            pdf.drawString(250, height - 70, f"Factuurdatum: {factuurdatum}")
 
-            y = height - 90
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(50, y, "Hourly wage per assignment")
-            y -= 25
+            # Company / personal info block
+            y = height - 110
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(70, y, name)
+            pdf.setFont("Helvetica", 10)
+            y -= 14
+            pdf.drawString(70, y, address)
+            y -= 14
+            pdf.drawString(70, y, f"{postcode} {stad}")
+            y -= 14
+            pdf.drawString(70, y, f"Mobiel: {mobile}")
+            y -= 14
+            pdf.drawString(70, y, f"E-mail: {mail}")
+            y -= 14
+            pdf.drawString(70, y, f"KvK: {kvk}")
+            y -= 14
+            pdf.drawString(70, y, f"BTW: {btw}")
+            y -= 14
+            pdf.drawString(70, y, f"IBAN: {iban}")
 
-            pdf.setFont("Helvetica", 12)
+            # Assignment overview title
+            y -= 30
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(70, y, "Overzicht opdrachten")
+            y -= 20
+
+            # Hourly wage per assignment
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(70, y, "Uurtarief per opdracht")
+            y -= 18
+            pdf.setFont("Helvetica", 10)
             for _, row in wage_assignment.iterrows():
-                pdf.drawString(60, y, f"{row['assignment']}: € {row['rate']:,.2f}/hour")
-                y -= 18
+                pdf.drawString(80, y, f"{row['assignment']}: € {row['rate']:,.2f} / uur")
+                y -= 14
+                if y < 120:
+                    break  # keep space for rest
 
-            y -= 20
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(50, y, "Hours per assignment")
-            y -= 25
-
-            pdf.setFont("Helvetica", 12)
+            # Hours per assignment
+            y -= 10
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(70, y, "Uren per opdracht")
+            y -= 18
+            pdf.setFont("Helvetica", 10)
             for _, row in hours_assignment.iterrows():
-                pdf.drawString(60, y, f"{row['assignment']}: {row['hours']:.2f} hours")
-                y -= 18
+                pdf.drawString(80, y, f"{row['assignment']}: {row['hours']:.2f} uur")
+                y -= 14
+                if y < 120:
+                    break
 
-            y -= 20
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(50, y, "Earnings per assignment")
-            y -= 25
-
-            pdf.setFont("Helvetica", 12)
+            # Earnings per assignment
+            y -= 10
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(70, y, "Inkomsten per opdracht")
+            y -= 18
+            pdf.setFont("Helvetica", 10)
             for _, row in earnings_assignment.iterrows():
-                pdf.drawString(60, y, f"{row['assignment']}: € {row['amount']:,.2f}")
-                y -= 18
+                pdf.drawString(80, y, f"{row['assignment']}: € {row['amount']:,.2f}")
+                y -= 14
+                if y < 120:
+                    break
+
+            # Subtotal / VAT / Total (bold) at bottom of page 1
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(70, 100, f"Subtotaal: € {subtotal:,.2f}")
+            pdf.drawString(70, 84, f"BTW 21%: € {vat:,.2f}")
+            pdf.drawString(70, 68, f"Totaal: € {total:,.2f}")
 
             pdf.showPage()
 
             # ---------------------------------------------------------
-            # PAGE 3+: HOURS & MONEY PER AREA (BY ASSIGNMENT)
+            # PAGE 2: FIELD WORK (HOURS & EARNINGS PER AREA)
             # ---------------------------------------------------------
-            pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment)")
+            # Green sidebar again
+            pdf.setFillColorRGB(0.0, 0.45, 0.0)
+            pdf.rect(0, 0, 60, height, fill=1, stroke=0)
+
+            pdf.setFillColor(colors.black)
+            pdf.setFont("Helvetica-Bold", 16)
+            pdf.drawString(70, height - 50, "Field work")
 
             y = height - 90
-            pdf.setFont("Helvetica", 12)
+            pdf.setFont("Helvetica", 10)
 
             for area in sorted(area_assignment["area"].unique()):
-                pdf.setFont("Helvetica-Bold", 12)
-                pdf.drawString(50, y, f"Area: {area}")
-                y -= 20
+                pdf.setFont("Helvetica-Bold", 11)
+                pdf.drawString(70, y, f"Gebied: {area}")
+                y -= 18
 
-                pdf.setFont("Helvetica", 12)
+                pdf.setFont("Helvetica", 10)
                 df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
                 for _, row in df_area_block.iterrows():
                     line = (
                         f"- {row['assignment']}: "
-                        f"{row['hours']:.2f} hours — € {row['amount']:,.2f}"
+                        f"{row['hours']:.2f} uur — € {row['amount']:,.2f}"
                     )
-                    pdf.drawString(60, y, line)
-                    y -= 18
+                    pdf.drawString(80, y, line)
+                    y -= 14
+                    if y < 70:
+                        break  # keep within second page
 
-                    if y < 60:
-                        pdf.showPage()
-                        pdf.setFont("Helvetica-Bold", 14)
-                        pdf.drawString(50, height - 50, "Hours and earnings per area (cont.)")
-                        y = height - 90
-                        pdf.setFont("Helvetica", 12)
-
-                y -= 10
-                if y < 60:
-                    pdf.showPage()
-                    pdf.setFont("Helvetica-Bold", 14)
-                    pdf.drawString(50, height - 50, "Hours and earnings per area (cont.)")
-                    y = height - 90
-                    pdf.setFont("Helvetica", 12)
+                y -= 8
+                if y < 70:
+                    break
 
             pdf.showPage()
             pdf.save()
