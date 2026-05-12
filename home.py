@@ -454,9 +454,6 @@ elif subpage == "Rounds Overview & Plot":
 # ---------------------------------------------------------
 # PAGE — MONTHLY EARNINGS
 # ---------------------------------------------------------
-# ---------------------------------------------------------
-# PAGE — MONTHLY EARNINGS
-# ---------------------------------------------------------
 elif subpage == "Monthly Earnings":
     st.header("Monthly Earnings")
 
@@ -477,11 +474,14 @@ elif subpage == "Monthly Earnings":
             for r in rounds
         ])
 
-        # unified hours and amount (always hours * rate)
+        # ---------------------------------------------------------
+        # CORRECT HOURS + AMOUNT (Deskwork vs Fieldwork)
+        # ---------------------------------------------------------
         def compute_hours(row):
-            if row["hours_worked"] is not None:
+            if row["type"] == "Deskwork":
                 return row["hours_worked"] or 0
-            return row["hours_per_round"] or 0
+            else:
+                return row["hours_per_round"] or 0
 
         df["hours"] = df.apply(compute_hours, axis=1)
         df["amount"] = df["hours"] * df["rate"]
@@ -533,7 +533,7 @@ elif subpage == "Monthly Earnings":
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # HOURS PER AREA (NESTED BY ASSIGNMENT, WITH MONEY)
+        # HOURS & MONEY PER AREA (NESTED BY ASSIGNMENT)
         # ---------------------------------------------------------
         st.subheader("Hours and earnings per area (by assignment)")
 
@@ -558,7 +558,7 @@ elif subpage == "Monthly Earnings":
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # TOTAL PER ASSIGNMENT (EARNINGS)
+        # TOTAL EARNINGS PER ASSIGNMENT
         # ---------------------------------------------------------
         st.subheader("Total earnings per assignment")
 
