@@ -333,21 +333,16 @@ elif subpage == "Rounds Overview & Plot":
         # -------------------------------
         st.subheader("Filters")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
+
 
         with col1:
-            date_filter = st.date_input("Filter by date", value=None)
-
-        with col2:
             assignment_filter = st.multiselect("Filter by assignment", df["assignment"].unique())
 
-        with col3:
+        with col2:
             area_filter = st.multiselect("Filter by area", df["area"].dropna().unique())
 
         df_filtered = df.copy()
-
-        if date_filter:
-            df_filtered = df_filtered[df_filtered["date"].dt.date == date_filter]
 
         if assignment_filter:
             df_filtered = df_filtered[df_filtered["assignment"].isin(assignment_filter)]
@@ -371,7 +366,7 @@ elif subpage == "Rounds Overview & Plot":
                 .encode(
                     x=alt.X("date:T", title="Date"),
                     y=alt.Y("assignment:N", title="Assignment"),
-                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="tableau20")),
+                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="Set1")),
                     tooltip=["date:T", "assignment:N", "hours_worked:Q"]
                 )
                 .interactive()
@@ -397,7 +392,7 @@ elif subpage == "Rounds Overview & Plot":
                 .encode(
                     x=alt.X("date:T", title="Date"),
                     y=alt.Y("area:N", title="Area"),
-                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="category20b")),
+                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="Dark2")),
                     tooltip=["date:T", "assignment:N", "area:N"]
                 )
                 .interactive()
