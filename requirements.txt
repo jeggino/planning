@@ -2,3 +2,4 @@ streamlit
 supabase
 python-dateutil
 reportlab
+qrcode
