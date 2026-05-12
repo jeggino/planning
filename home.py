@@ -810,3 +810,4 @@ elif subpage == "Monthly Earnings":
                 file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
+
