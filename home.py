@@ -585,94 +585,104 @@ elif subpage == "Monthly Earnings":
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # PDF EXPORT (2-PAGE, GREEN PROFESSIONAL LAYOUT)
+        # CLIENT INFO (RIGHT SIDE OF INVOICE)
+        # ---------------------------------------------------------
+        st.subheader("Client information (for invoice)")
+        klant_naam = st.text_input("Client name")
+        klant_adres = st.text_input("Client address")
+        klant_postcode = st.text_input("Client postcode")
+        klant_stad = st.text_input("Client city")
+
+        # ---------------------------------------------------------
+        # PDF EXPORT (DUTCH ONLY)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
 
-        name = st.text_input("Naam")
-        address = st.text_input("Adres")
-        postcode = st.text_input("Postcode")
-        stad = st.text_input("Stad")
-        mobile = st.text_input("Mobiel")
-        mail = st.text_input("E-mail")
-        kvk = st.text_input("KvK nummer")
-        btw = st.text_input("BTW nummer")
-        iban = st.text_input("IBAN")
-
         if st.button("Generate PDF"):
-            missing = [
-                label for label, value in [
-                    ("Naam", name),
-                    ("Adres", address),
-                    ("Postcode", postcode),
-                    ("Stad", stad),
-                    ("Mobiel", mobile),
-                    ("E-mail", mail),
-                    ("KvK nummer", kvk),
-                    ("BTW nummer", btw),
-                    ("IBAN", iban),
-                ] if not value
-            ]
-            if missing:
-                st.error("Vul alle velden in: " + ", ".join(missing))
+            import random
+            from reportlab.lib import colors
+
+            # LOAD BUSINESS INFO FROM SECRETS
+            bedrijf = st.secrets["bedrijf"]
+
+            eigen_naam = bedrijf["naam"]
+            eigen_adres = bedrijf["adres"]
+            eigen_postcode = bedrijf["postcode"]
+            eigen_stad = bedrijf["stad"]
+            eigen_mobiel = bedrijf["mobiel"]
+            eigen_email = bedrijf["email"]
+            eigen_kvk = bedrijf["kvk"]
+            eigen_btw = bedrijf["btw"]
+            eigen_iban = bedrijf["iban"]
+
+            # VALIDATE CLIENT INFO
+            if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
+                st.error("Please fill in all client fields before generating the invoice.")
                 st.stop()
 
-            today = datetime.today()
-            factuurdatum = today.strftime("%d-%m-%Y")
-            uniek_factuurnummer = today.strftime("%Y%m%d-%H%M%S")
+            # FACTUURNUMMER + FACTUURDATUM
+            vandaag = datetime.today()
+            factuurdatum = vandaag.strftime("%d-%m-%Y")
+            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
 
+            # PDF START
             buffer = io.BytesIO()
             pdf = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
 
             # ---------------------------------------------------------
-            # PAGE 1: GREEN LAYOUT + HEADER + ASSIGNMENT OVERVIEW + TOTALS
+            # PAGE 1 — HEADER + OVERZICHT OPDRACHTEN
             # ---------------------------------------------------------
-            from reportlab.lib import colors
 
-            # Green sidebar
+            # GREEN SIDEBAR
             pdf.setFillColorRGB(0.0, 0.45, 0.0)
             pdf.rect(0, 0, 60, height, fill=1, stroke=0)
 
-            # Light header bar
-            pdf.setFillColorRGB(0.9, 0.97, 0.9)
-            pdf.rect(60, height - 80, width - 60, 80, fill=1, stroke=0)
-
+            # TITLE = FACTUURNUMMER
             pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 18)
-            pdf.drawString(70, height - 50, "Factuur")
+            pdf.setFont("Helvetica-Bold", 20)
+            pdf.drawString(70, height - 50, f"Factuur {factuurnummer}")
 
-            pdf.setFont("Helvetica", 10)
-            pdf.drawString(70, height - 70, f"Factuurnummer: {uniek_factuurnummer}")
-            pdf.drawString(250, height - 70, f"Factuurdatum: {factuurdatum}")
+            # SUBHEADER = PERIODEN
+            pdf.setFont("Helvetica", 12)
+            pdf.drawString(70, height - 75, f"Periode(s): {', '.join(selected_months)}")
 
-            # Company / personal info block
-            y = height - 110
+            # SUBSUBHEADER = FACTUURDATUM
+            pdf.drawString(70, height - 95, f"Factuurdatum: {factuurdatum}")
+
+            # BUSINESS INFO (LEFT)
+            y = height - 140
             pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, name)
+            pdf.drawString(70, y, eigen_naam)
             pdf.setFont("Helvetica", 10)
-            y -= 14
-            pdf.drawString(70, y, address)
-            y -= 14
-            pdf.drawString(70, y, f"{postcode} {stad}")
-            y -= 14
-            pdf.drawString(70, y, f"Mobiel: {mobile}")
-            y -= 14
-            pdf.drawString(70, y, f"E-mail: {mail}")
-            y -= 14
-            pdf.drawString(70, y, f"KvK: {kvk}")
-            y -= 14
-            pdf.drawString(70, y, f"BTW: {btw}")
-            y -= 14
-            pdf.drawString(70, y, f"IBAN: {iban}")
+            y -= 14; pdf.drawString(70, y, eigen_adres)
+            y -= 14; pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
+            y -= 14; pdf.drawString(70, y, f"Mobiel: {eigen_mobiel}")
+            y -= 14; pdf.drawString(70, y, f"E-mail: {eigen_email}")
+            y -= 14; pdf.drawString(70, y, f"KvK: {eigen_kvk}")
+            y -= 14; pdf.drawString(70, y, f"BTW: {eigen_btw}")
+            y -= 14; pdf.drawString(70, y, f"IBAN: {eigen_iban}")
 
-            # Assignment overview title
-            y -= 30
-            pdf.setFont("Helvetica-Bold", 13)
+            # CLIENT INFO (RIGHT)
+            y2 = height - 140
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(width - 250, y2, klant_naam)
+            pdf.setFont("Helvetica", 10)
+            y2 -= 14; pdf.drawString(width - 250, y2, klant_adres)
+            y2 -= 14; pdf.drawString(width - 250, y2, f"{klant_postcode} {klant_stad}")
+
+            # SEPARATOR LINE
+            pdf.setLineWidth(1)
+            pdf.line(70, y - 10, width - 40, y - 10)
+
+            y = y - 40
+
+            # OVERZICHT OPDRACHTEN
+            pdf.setFont("Helvetica-Bold", 14)
             pdf.drawString(70, y, "Overzicht opdrachten")
-            y -= 20
+            y -= 25
 
-            # Hourly wage per assignment
+            # UURTARIEF
             pdf.setFont("Helvetica-Bold", 11)
             pdf.drawString(70, y, "Uurtarief per opdracht")
             y -= 18
@@ -680,11 +690,10 @@ elif subpage == "Monthly Earnings":
             for _, row in wage_assignment.iterrows():
                 pdf.drawString(80, y, f"{row['assignment']}: € {row['rate']:,.2f} / uur")
                 y -= 14
-                if y < 120:
-                    break  # keep space for rest
 
-            # Hours per assignment
             y -= 10
+
+            # UREN
             pdf.setFont("Helvetica-Bold", 11)
             pdf.drawString(70, y, "Uren per opdracht")
             y -= 18
@@ -692,11 +701,10 @@ elif subpage == "Monthly Earnings":
             for _, row in hours_assignment.iterrows():
                 pdf.drawString(80, y, f"{row['assignment']}: {row['hours']:.2f} uur")
                 y -= 14
-                if y < 120:
-                    break
 
-            # Earnings per assignment
             y -= 10
+
+            # INKOMSTEN
             pdf.setFont("Helvetica-Bold", 11)
             pdf.drawString(70, y, "Inkomsten per opdracht")
             y -= 18
@@ -704,26 +712,27 @@ elif subpage == "Monthly Earnings":
             for _, row in earnings_assignment.iterrows():
                 pdf.drawString(80, y, f"{row['assignment']}: € {row['amount']:,.2f}")
                 y -= 14
-                if y < 120:
-                    break
 
-            # Subtotal / VAT / Total (bold) at bottom of page 1
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, 100, f"Subtotaal: € {subtotal:,.2f}")
-            pdf.drawString(70, 84, f"BTW 21%: € {vat:,.2f}")
-            pdf.drawString(70, 68, f"Totaal: € {total:,.2f}")
+            y -= 20
+
+            # TOTAAL
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(70, y, f"Subtotaal: € {subtotal:,.2f}")
+            y -= 18
+            pdf.drawString(70, y, f"BTW 21%: € {vat:,.2f}")
+            y -= 18
+            pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
 
             pdf.showPage()
 
             # ---------------------------------------------------------
-            # PAGE 2: FIELD WORK (HOURS & EARNINGS PER AREA)
+            # PAGE 2 — FIELD WORK
             # ---------------------------------------------------------
-            # Green sidebar again
             pdf.setFillColorRGB(0.0, 0.45, 0.0)
             pdf.rect(0, 0, 60, height, fill=1, stroke=0)
 
             pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 16)
+            pdf.setFont("Helvetica-Bold", 18)
             pdf.drawString(70, height - 50, "Field work")
 
             y = height - 90
@@ -737,16 +746,13 @@ elif subpage == "Monthly Earnings":
                 pdf.setFont("Helvetica", 10)
                 df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
                 for _, row in df_area_block.iterrows():
-                    line = (
-                        f"- {row['assignment']}: "
-                        f"{row['hours']:.2f} uur — € {row['amount']:,.2f}"
-                    )
-                    pdf.drawString(80, y, line)
+                    pdf.drawString(80, y, f"- {row['assignment']}: {row['hours']:.2f} uur — € {row['amount']:,.2f}")
                     y -= 14
-                    if y < 70:
-                        break  # keep within second page
 
-                y -= 8
+                    if y < 70:
+                        break
+
+                y -= 10
                 if y < 70:
                     break
 
@@ -758,6 +764,6 @@ elif subpage == "Monthly Earnings":
             st.download_button(
                 label="Download PDF invoice",
                 data=buffer,
-                file_name=f"invoice_{'_'.join(selected_months)}.pdf",
+                file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
