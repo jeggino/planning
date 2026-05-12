@@ -368,7 +368,7 @@ elif subpage == "Rounds Overview & Plot":
                     color=alt.Color(
                         "assignment:N",
                         title="Assignment",
-                        scale=alt.Scale(scheme="Set1")  # HIGH CONTRAST COLORS
+                        scale=alt.Scale(scheme="category10")   # VERY DISTINCT COLORS
                     ),
                     tooltip=["date:T", "assignment:N", "hours_worked:Q"]
                 )
@@ -398,7 +398,7 @@ elif subpage == "Rounds Overview & Plot":
                     color=alt.Color(
                         "assignment:N",
                         title="Assignment",
-                        scale=alt.Scale(scheme="Dark2")  # HIGH CONTRAST COLORS
+                        scale=alt.Scale(scheme="paired")   # ALSO VERY DISTINCT
                     ),
                     tooltip=["date:T", "assignment:N", "area:N"]
                 )
@@ -449,6 +449,7 @@ elif subpage == "Rounds Overview & Plot":
                 supabase.table("rounds").delete().eq("id", row["id"]).execute()
                 st.warning("Round deleted.")
                 refresh()
+
 
 # ---------------------------------------------------------
 # PAGE — MONTHLY EARNINGS
