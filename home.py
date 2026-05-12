@@ -507,13 +507,9 @@ elif subpage == "Monthly Earnings":
         vat = subtotal * 0.21
         total = subtotal + vat
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Subtotal", f"€ {subtotal:,.2f}")
-        with col2:
-            st.metric("VAT 21%", f"€ {vat:,.2f}")
-        with col3:
-            st.metric("Total", f"€ {total:,.2f}")
+        st.metric("Subtotal", f"€ {subtotal:,.2f}")
+        st.metric("VAT 21%", f"€ {vat:,.2f}")
+        st.metric("Total", f"€ {total:,.2f}")
 
         st.markdown("---")
 
@@ -569,34 +565,7 @@ elif subpage == "Monthly Earnings":
             .sort_values("amount", ascending=False)
         )
 
-        st.bar_chart(
-            data=earnings_assignment,
-            x="assignment",
-            y="amount",
-            use_container_width=True
-        )
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # STACKED BAR CHART BY TYPE
-        # ---------------------------------------------------------
-        st.subheader("Monthly earnings by type (stacked)")
-
-        chart = (
-            alt.Chart(df_month)
-            .mark_bar()
-            .encode(
-                x=alt.X("assignment:N", title="Assignment"),
-                y=alt.Y("amount:Q", title="Earnings (€)"),
-                color=alt.Color("type:N", title="Type", scale=alt.Scale(scheme="category10")),
-                tooltip=["assignment:N", "type:N", "amount:Q"]
-            )
-            .interactive()
-            .properties(height=450)
-        )
-
-        st.altair_chart(chart, use_container_width=True)
+        st.dataframe(earnings_assignment, use_container_width=True)
 
         st.markdown("---")
 
@@ -620,82 +589,83 @@ elif subpage == "Monthly Earnings":
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
 
+        company = st.text_input("Company name")
+        sofi = st.text_input("SOFI number")
+        bank = st.text_input("Bank account (IBAN)")
+
         if st.button("Generate PDF"):
+            if not company or not sofi or not bank:
+                st.error("Please fill in company name, SOFI number, and bank account.")
+                st.stop()
+
             buffer = io.BytesIO()
             pdf = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
 
-            # PAGE 1: SUMMARY
+            # ---------------------------------------------------------
+            # PAGE 1: SUMMARY + COMPANY INFO
+            # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 16)
             pdf.drawString(50, height - 50, f"Invoice — {', '.join(selected_months)}")
 
             pdf.setFont("Helvetica", 12)
-            pdf.drawString(50, height - 90, f"Subtotal: € {subtotal:,.2f}")
-            pdf.drawString(50, height - 110, f"VAT 21%: € {vat:,.2f}")
-            pdf.drawString(50, height - 130, f"Total: € {total:,.2f}")
+            pdf.drawString(50, height - 90, f"Company: {company}")
+            pdf.drawString(50, height - 110, f"SOFI: {sofi}")
+            pdf.drawString(50, height - 130, f"Bank: {bank}")
+
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(50, height - 170, f"Subtotal: € {subtotal:,.2f}")
+            pdf.drawString(50, height - 190, f"VAT 21%: € {vat:,.2f}")
+            pdf.drawString(50, height - 210, f"Total: € {total:,.2f}")
 
             pdf.showPage()
 
-            # PAGE 2: HOURLY WAGE PER ASSIGNMENT
+            # ---------------------------------------------------------
+            # PAGE 2: WAGES + HOURS + EARNINGS (TOGETHER)
+            # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(50, height - 50, "Hourly wage per assignment")
+            pdf.drawString(50, height - 50, "Assignment Overview")
+
+            y = height - 90
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(50, y, "Hourly wage per assignment")
+            y -= 25
 
             pdf.setFont("Helvetica", 12)
-            y = height - 80
             for _, row in wage_assignment.iterrows():
-                pdf.drawString(60, y, f"{row['assignment']}: € {row['rate']:,.2f} / hour")
+                pdf.drawString(60, y, f"{row['assignment']}: € {row['rate']:,.2f}/hour")
                 y -= 18
-                if y < 60:
-                    pdf.showPage()
-                    pdf.setFont("Helvetica-Bold", 14)
-                    pdf.drawString(50, height - 50, "Hourly wage per assignment (cont.)")
-                    pdf.setFont("Helvetica", 12)
-                    y = height - 80
 
-            pdf.showPage()
-
-            # PAGE 3: HOURS PER ASSIGNMENT
-            pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(50, height - 50, "Hours per assignment")
+            y -= 20
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(50, y, "Hours per assignment")
+            y -= 25
 
             pdf.setFont("Helvetica", 12)
-            y = height - 80
             for _, row in hours_assignment.iterrows():
                 pdf.drawString(60, y, f"{row['assignment']}: {row['hours']:.2f} hours")
                 y -= 18
-                if y < 60:
-                    pdf.showPage()
-                    pdf.setFont("Helvetica-Bold", 14)
-                    pdf.drawString(50, height - 50, "Hours per assignment (cont.)")
-                    pdf.setFont("Helvetica", 12)
-                    y = height - 80
 
-            pdf.showPage()
-
-            # PAGE 4: EARNINGS PER ASSIGNMENT
-            pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(50, height - 50, "Earnings per assignment")
+            y -= 20
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(50, y, "Earnings per assignment")
+            y -= 25
 
             pdf.setFont("Helvetica", 12)
-            y = height - 80
             for _, row in earnings_assignment.iterrows():
                 pdf.drawString(60, y, f"{row['assignment']}: € {row['amount']:,.2f}")
                 y -= 18
-                if y < 60:
-                    pdf.showPage()
-                    pdf.setFont("Helvetica-Bold", 14)
-                    pdf.drawString(50, height - 50, "Earnings per assignment (cont.)")
-                    pdf.setFont("Helvetica", 12)
-                    y = height - 80
 
             pdf.showPage()
 
-            # PAGE 5+: HOURS & MONEY PER AREA (BY ASSIGNMENT)
+            # ---------------------------------------------------------
+            # PAGE 3+: HOURS & MONEY PER AREA (BY ASSIGNMENT)
+            # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 14)
             pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment)")
 
+            y = height - 90
             pdf.setFont("Helvetica", 12)
-            y = height - 80
 
             for area in sorted(area_assignment["area"].unique()):
                 pdf.setFont("Helvetica-Bold", 12)
@@ -711,23 +681,21 @@ elif subpage == "Monthly Earnings":
                     )
                     pdf.drawString(60, y, line)
                     y -= 18
+
                     if y < 60:
                         pdf.showPage()
                         pdf.setFont("Helvetica-Bold", 14)
-                        pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment) (cont.)")
-                        pdf.setFont("Helvetica-Bold", 12)
-                        y = height - 80
-                        pdf.drawString(50, y, f"Area: {area} (cont.)")
-                        y -= 20
+                        pdf.drawString(50, height - 50, "Hours and earnings per area (cont.)")
+                        y = height - 90
                         pdf.setFont("Helvetica", 12)
 
                 y -= 10
                 if y < 60:
                     pdf.showPage()
                     pdf.setFont("Helvetica-Bold", 14)
-                    pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment) (cont.)")
+                    pdf.drawString(50, height - 50, "Hours and earnings per area (cont.)")
+                    y = height - 90
                     pdf.setFont("Helvetica", 12)
-                    y = height - 80
 
             pdf.showPage()
             pdf.save()
