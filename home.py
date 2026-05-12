@@ -451,383 +451,150 @@ elif subpage == "Rounds Overview & Plot":
                 refresh()
 
 
-# ---------------------------------------------------------
-# PAGE — MONTHLY EARNINGS
-# ---------------------------------------------------------
-elif subpage == "Monthly Earnings":
-    st.header("Monthly Earnings")
-
-    rounds = get_rounds()
-    if not rounds:
-        st.info("No rounds yet.")
-    else:
-        df = pd.DataFrame([
-            {
-                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
-                "assignment": r["assignments"]["name"],
-                "type": r["assignments"]["type"],
-                "area": r["areas"]["name"] if r["areas"] else None,
-                "hours_worked": r["hours_worked"],
-                "hours_per_round": r["assignments"]["hours_per_round"],
-                "rate": r["assignments"]["hourly_rate"],
-            }
-            for r in rounds
-        ])
-
         # ---------------------------------------------------------
-        # CORRECT HOURS + AMOUNT (Deskwork vs Fieldwork)
+        # PAGE — MONTHLY EARNINGS
         # ---------------------------------------------------------
-        def compute_hours(row):
-            if row["type"] == "Deskwork":
-                return row["hours_worked"] or 0
+        elif subpage == "Monthly Earnings":
+            st.header("Monthly Earnings")
+        
+            rounds = get_rounds()
+            if not rounds:
+                st.info("No rounds yet.")
             else:
-                return row["hours_per_round"] or 0
-
-        df["hours"] = df.apply(compute_hours, axis=1)
-        df["amount"] = df["hours"] * df["rate"]
-        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
-
-        # ---------------------------------------------------------
-        # MULTI-MONTH SELECTION
-        # ---------------------------------------------------------
-        st.subheader("Select month(s)")
-        months = sorted(df["month"].unique())
-        selected_months = st.multiselect("Months", months, default=[months[-1]])
-
-        if not selected_months:
-            st.info("Select at least one month.")
-            st.stop()
-
-        df_month = df[df["month"].isin(selected_months)]
-
-        # ---------------------------------------------------------
-        # TOTALS
-        # ---------------------------------------------------------
-        subtotal = df_month["amount"].sum()
-        vat = subtotal * 0.21
-        total = subtotal + vat
-
-        st.metric("Subtotal", f"€ {subtotal:,.2f}")
-        st.metric("VAT 21%", f"€ {vat:,.2f}")
-        st.metric("Total", f"€ {total:,.2f}")
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # HOURS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Hours per assignment")
-
-        hours_assignment = (
-            df_month.groupby("assignment")["hours"]
-            .sum()
-            .reset_index()
-            .sort_values("hours", ascending=False)
-        )
-        st.dataframe(hours_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # HOURS & MONEY PER AREA (NESTED BY ASSIGNMENT)
-        # ---------------------------------------------------------
-        st.subheader("Hours and earnings per area (by assignment)")
-
-        df_area = df_month.dropna(subset=["area"])
-
-        area_assignment = (
-            df_area.groupby(["area", "assignment"])
-            .agg(hours=("hours", "sum"), amount=("amount", "sum"))
-            .reset_index()
-        )
-
-        for area in sorted(area_assignment["area"].unique()):
-            st.markdown(f"**Area: {area}**")
-            df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
-            for _, row in df_area_block.iterrows():
-                st.markdown(
-                    f"- {row['assignment']}: "
-                    f"{row['hours']:.2f} hours — € {row['amount']:,.2f}"
+                df = pd.DataFrame([
+                    {
+                        "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
+                        "assignment": r["assignments"]["name"],
+                        "type": r["assignments"]["type"],
+                        "area": r["areas"]["name"] if r["areas"] else None,
+                        "hours_worked": r["hours_worked"],
+                        "hours_per_round": r["assignments"]["hours_per_round"],
+                        "rate": r["assignments"]["hourly_rate"],
+                    }
+                    for r in rounds
+                ])
+        
+                # ---------------------------------------------------------
+                # CORRECT HOURS + AMOUNT (Deskwork vs Fieldwork)
+                # ---------------------------------------------------------
+                def compute_hours(row):
+                    if row["type"] == "Deskwork":
+                        return row["hours_worked"] or 0
+                    else:
+                        return row["hours_per_round"] or 0
+        
+                df["hours"] = df.apply(compute_hours, axis=1)
+                df["amount"] = df["hours"] * df["rate"]
+                df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
+        
+                # ---------------------------------------------------------
+                # MULTI-MONTH SELECTION
+                # ---------------------------------------------------------
+                st.subheader("Select month(s)")
+                months = sorted(df["month"].unique())
+                selected_months = st.multiselect("Months", months, default=[months[-1]])
+        
+                if not selected_months:
+                    st.info("Select at least one month.")
+                    st.stop()
+        
+                df_month = df[df["month"].isin(selected_months)]
+        
+                # ---------------------------------------------------------
+                # TOTALS
+                # ---------------------------------------------------------
+                subtotal = df_month["amount"].sum()
+                vat = subtotal * 0.21
+                total = subtotal + vat
+        
+                st.metric("Subtotal", f"€ {subtotal:,.2f}")
+                st.metric("VAT 21%", f"€ {vat:,.2f}")
+                st.metric("Total", f"€ {total:,.2f}")
+        
+                st.markdown("---")
+        
+                # ---------------------------------------------------------
+                # HOURS PER ASSIGNMENT
+                # ---------------------------------------------------------
+                st.subheader("Hours per assignment")
+        
+                hours_assignment = (
+                    df_month.groupby("assignment")["hours"]
+                    .sum()
+                    .reset_index()
+                    .sort_values("hours", ascending=False)
                 )
-            st.markdown("")
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # TOTAL EARNINGS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Total earnings per assignment")
-
-        earnings_assignment = (
-            df_month.groupby("assignment")["amount"]
-            .sum()
-            .reset_index()
-            .sort_values("amount", ascending=False)
-        )
-
-        st.dataframe(earnings_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # HOURLY WAGE PER ASSIGNMENT
-        # ---------------------------------------------------------
-        wage_assignment = (
-            df_month.groupby("assignment")["rate"]
-            .first()
-            .reset_index()
-            .sort_values("assignment")
-        )
-
-        st.subheader("Hourly wage per assignment")
-        st.dataframe(wage_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # CLIENT INFO (RIGHT SIDE OF INVOICE)
-        # ---------------------------------------------------------
-        st.subheader("Client information (for invoice)")
-        klant_naam = st.text_input("Client name")
-        klant_adres = st.text_input("Client address")
-        klant_postcode = st.text_input("Client postcode")
-        klant_stad = st.text_input("Client city")
-
-        # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH ONLY, ADVANCED LAYOUT + QR + FOOTER)
-        # ---------------------------------------------------------
-        st.subheader("Export invoice as PDF")
-
-        if st.button("Generate PDF"):
-            import random
-            import qrcode
-            from reportlab.lib import colors
-            from reportlab.lib.utils import ImageReader
+                st.dataframe(hours_assignment, use_container_width=True)
         
-            # ---------------------------------------------------------
-            # LOAD BUSINESS INFO FROM SECRETS
-            # ---------------------------------------------------------
-            bedrijf = st.secrets["bedrijf"]
+                st.markdown("---")
         
-            eigen_naam = bedrijf["naam"]
-            eigen_adres = bedrijf["adres"]
-            eigen_postcode = bedrijf["postcode"]
-            eigen_stad = bedrijf["stad"]
-            eigen_mobiel = bedrijf["mobiel"]
-            eigen_email = bedrijf["email"]
-            eigen_kvk = bedrijf["kvk"]
-            eigen_btw = bedrijf["btw"]
-            eigen_iban = bedrijf["iban"]
+                # ---------------------------------------------------------
+                # HOURS & MONEY PER AREA (NESTED BY ASSIGNMENT)
+                # ---------------------------------------------------------
+                st.subheader("Hours and earnings per area (by assignment)")
         
-            # ---------------------------------------------------------
-            # VALIDATE CLIENT INFO
-            # ---------------------------------------------------------
-            if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
-                st.error("Please fill in all client fields before generating the invoice.")
-                st.stop()
+                df_area = df_month.dropna(subset=["area"])
         
-            # ---------------------------------------------------------
-            # FACTUURNUMMER + FACTUURDATUM
-            # ---------------------------------------------------------
-            vandaag = datetime.today()
-            factuurdatum = vandaag.strftime("%d-%m-%Y")
-            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
+                area_assignment = (
+                    df_area.groupby(["area", "assignment"])
+                    .agg(hours=("hours", "sum"), amount=("amount", "sum"))
+                    .reset_index()
+                )
         
-            # ---------------------------------------------------------
-            # CREATE PAYMENT QR (SEPA-LIKE TEXT)
-            # ---------------------------------------------------------
-            qr_text = (
-                f"IBAN:{eigen_iban}\n"
-                f"Naam:{eigen_naam}\n"
-                f"Bedrag:{total:.2f}\n"
-                f"Omschrijving:Factuur {factuurnummer}"
-            )
-            qr_img = qrcode.make(qr_text)
-            qr_buffer = io.BytesIO()
-            qr_img.save(qr_buffer, format="PNG")
-            qr_buffer.seek(0)
-            qr_reader = ImageReader(qr_buffer)
+                for area in sorted(area_assignment["area"].unique()):
+                    st.markdown(f"**Area: {area}**")
+                    df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
+                    for _, row in df_area_block.iterrows():
+                        st.markdown(
+                            f"- {row['assignment']}: "
+                            f"{row['hours']:.2f} hours — € {row['amount']:,.2f}"
+                        )
+                    st.markdown("")
         
-            # ---------------------------------------------------------
-            # PDF START
-            # ---------------------------------------------------------
-            buffer = io.BytesIO()
-            pdf = canvas.Canvas(buffer, pagesize=A4)
-            width, height = A4
+                st.markdown("---")
         
-            # ---------------------------------------------------------
-            # DECORATION: ECO LEAFS IN CORNERS
-            # ---------------------------------------------------------
-            def draw_leaf_decorations():
-                pdf.setFillColorRGB(0.0, 0.45, 0.0)
-                pdf.circle(25, height - 25, 12, fill=1)
-                pdf.circle(width - 25, 25, 12, fill=1)
+                # ---------------------------------------------------------
+                # TOTAL EARNINGS PER ASSIGNMENT
+                # ---------------------------------------------------------
+                st.subheader("Total earnings per assignment")
         
-            # ---------------------------------------------------------
-            # FOOTER
-            # ---------------------------------------------------------
-            def draw_footer(page_num: int):
-                pdf.setFont("Helvetica", 8)
-                pdf.setFillColor(colors.grey)
-                pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
-                pdf.drawRightString(width - 40, 30, f"Pagina {page_num}")
+                earnings_assignment = (
+                    df_month.groupby("assignment")["amount"]
+                    .sum()
+                    .reset_index()
+                    .sort_values("amount", ascending=False)
+                )
         
-            # ---------------------------------------------------------
-            # PAGE 1 — HEADER + OVERZICHT OPDRACHTEN + QR
-            # ---------------------------------------------------------
+                st.dataframe(earnings_assignment, use_container_width=True)
         
-            # GREEN SIDEBAR
-            pdf.setFillColorRGB(0.0, 0.45, 0.0)
-            pdf.rect(0, 0, 60, height, fill=1, stroke=0)
+                st.markdown("---")
         
-            # HEADER BAR
-            pdf.setFillColorRGB(0.9, 0.97, 0.9)
-            pdf.rect(60, height - 110, width - 60, 110, fill=1, stroke=0)
+                # ---------------------------------------------------------
+                # HOURLY WAGE PER ASSIGNMENT
+                # ---------------------------------------------------------
+                wage_assignment = (
+                    df_month.groupby("assignment")["rate"]
+                    .first()
+                    .reset_index()
+                    .sort_values("assignment")
+                )
         
-            # DECORATION
-            draw_leaf_decorations()
+                st.subheader("Hourly wage per assignment")
+                st.dataframe(wage_assignment, use_container_width=True)
         
-            # TITLE = FACTUURNUMMER
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawString(70, height - 55, f"Factuur {factuurnummer}")
+                st.markdown("---")
         
-            # SUBHEADER = PERIODEN
-            pdf.setFont("Helvetica", 12)
-            pdf.drawString(70, height - 80, f"Periode(s): {', '.join(selected_months)}")
+                # ---------------------------------------------------------
+                # CLIENT INFO (RIGHT SIDE OF INVOICE)
+                # ---------------------------------------------------------
+                st.subheader("Client information (for invoice)")
+                klant_naam = st.text_input("Client name")
+                klant_adres = st.text_input("Client address")
+                klant_postcode = st.text_input("Client postcode")
+                klant_stad = st.text_input("Client city")
         
-            # SUBSUBHEADER = FACTUURDATUM
-            pdf.drawString(70, height - 100, f"Factuurdatum: {factuurdatum}")
+                # ---------------------------------------------------------
+                # PDF EXPORT (DUTCH ONLY, ADVANCED LAYOUT + QR + FOOTER)
+                # ---------------------------------------------------------
+                st.subheader("Export invoice as PDF")
         
-            # QR CODE (LEFT TOP)
-            qr_size = 90
-            pdf.drawImage(qr_reader, 70, height - 210, qr_size, qr_size, preserveAspectRatio=True, mask='auto')
-            pdf.setFont("Helvetica", 8)
-            pdf.drawString(70, height - 220, "Scan om te betalen")
-        
-            # BUSINESS INFO (LEFT)
-            y = height - 250
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, eigen_naam)
-            pdf.setFont("Helvetica", 10)
-            y -= 14; pdf.drawString(70, y, eigen_adres)
-            y -= 14; pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
-            y -= 14; pdf.drawString(70, y, f"Mobiel: {eigen_mobiel}")
-            y -= 14; pdf.drawString(70, y, f"E-mail: {eigen_email}")
-            y -= 14; pdf.drawString(70, y, f"KvK: {eigen_kvk}")
-            y -= 14; pdf.drawString(70, y, f"BTW: {eigen_btw}")
-            y -= 14; pdf.drawString(70, y, f"IBAN: {eigen_iban}")
-        
-            # CLIENT INFO (RIGHT)
-            y2 = height - 250
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(width - 250, y2, klant_naam)
-            pdf.setFont("Helvetica", 10)
-            y2 -= 14; pdf.drawString(width - 250, y2, klant_adres)
-            y2 -= 14; pdf.drawString(width - 250, y2, f"{klant_postcode} {klant_stad}")
-        
-            # SEPARATOR LINE
-            pdf.setLineWidth(1)
-            pdf.setStrokeColor(colors.grey)
-            pdf.line(70, y - 10, width - 40, y - 10)
-        
-            y = y - 40
-        
-            # OVERZICHT OPDRACHTEN
-            pdf.setFont("Helvetica-Bold", 14)
-            pdf.drawString(70, y, "Overzicht opdrachten")
-            y -= 25
-        
-            # UURTARIEF
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, "Uurtarief per opdracht")
-            y -= 18
-            pdf.setFont("Helvetica", 10)
-            for _, row in wage_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: € {row['rate']:,.2f} / uur")
-                y -= 14
-        
-            y -= 10
-        
-            # UREN
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, "Uren per opdracht")
-            y -= 18
-            pdf.setFont("Helvetica", 10)
-            for _, row in hours_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: {row['hours']:.2f} uur")
-                y -= 14
-        
-            y -= 10
-        
-            # INKOMSTEN
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, "Inkomsten per opdracht")
-            y -= 18
-            pdf.setFont("Helvetica", 10)
-            for _, row in earnings_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: € {row['amount']:,.2f}")
-                y -= 14
-        
-            y -= 20
-        
-            # TOTAAL
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, f"Subtotaal: € {subtotal:,.2f}")
-            y -= 18
-            pdf.drawString(70, y, f"BTW 21%: € {vat:,.2f}")
-            y -= 18
-            pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
-        
-            # FOOTER PAGE 1
-            draw_footer(1)
-        
-            pdf.showPage()
-        
-            # ---------------------------------------------------------
-            # PAGE 2 — VELDWERK
-            # ---------------------------------------------------------
-            pdf.setFillColorRGB(0.0, 0.45, 0.0)
-            pdf.rect(0, 0, 60, height, fill=1, stroke=0)
-        
-            draw_leaf_decorations()
-        
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 18)
-            pdf.drawString(70, height - 50, "Veldwerk")
-        
-            y = height - 90
-            pdf.setFont("Helvetica", 10)
-        
-            for area in sorted(area_assignment["area"].unique()):
-                pdf.setFont("Helvetica-Bold", 11)
-                pdf.drawString(70, y, f"Gebied: {area}")
-                y -= 18
-        
-                pdf.setFont("Helvetica", 10)
-                df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
-                for _, row in df_area_block.iterrows():
-                    pdf.drawString(80, y, f"- {row['assignment']}: {row['hours']:.2f} uur — € {row['amount']:,.2f}")
-                    y -= 14
-        
-                    if y < 70:
-                        break
-        
-                y -= 10
-                if y < 70:
-                    break
-        
-            # FOOTER PAGE 2
-            draw_footer(2)
-        
-            pdf.showPage()
-            pdf.save()
-        
-            buffer.seek(0)
-        
-            st.download_button(
-                label="Download PDF invoice",
-                data=buffer,
-                file_name=f"factuur_{factuurnummer}.pdf",
-                mime="application/pdf"
-            )
