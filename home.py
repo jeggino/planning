@@ -329,12 +329,11 @@ elif subpage == "Rounds Overview & Plot":
         df["date"] = pd.to_datetime(df["date"])
 
         # -------------------------------
-        # FILTERS
+        # FILTERS (NO DATE FILTER)
         # -------------------------------
         st.subheader("Filters")
 
         col1, col2 = st.columns(2)
-
 
         with col1:
             assignment_filter = st.multiselect("Filter by assignment", df["assignment"].unique())
@@ -366,7 +365,11 @@ elif subpage == "Rounds Overview & Plot":
                 .encode(
                     x=alt.X("date:T", title="Date"),
                     y=alt.Y("assignment:N", title="Assignment"),
-                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="Set1")),
+                    color=alt.Color(
+                        "assignment:N",
+                        title="Assignment",
+                        scale=alt.Scale(scheme="Set1")  # HIGH CONTRAST COLORS
+                    ),
                     tooltip=["date:T", "assignment:N", "hours_worked:Q"]
                 )
                 .interactive()
@@ -392,7 +395,11 @@ elif subpage == "Rounds Overview & Plot":
                 .encode(
                     x=alt.X("date:T", title="Date"),
                     y=alt.Y("area:N", title="Area"),
-                    color=alt.Color("assignment:N", title="Assignment", scale=alt.Scale(scheme="Dark2")),
+                    color=alt.Color(
+                        "assignment:N",
+                        title="Assignment",
+                        scale=alt.Scale(scheme="Dark2")  # HIGH CONTRAST COLORS
+                    ),
                     tooltip=["date:T", "assignment:N", "area:N"]
                 )
                 .interactive()
