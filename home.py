@@ -454,6 +454,9 @@ elif subpage == "Rounds Overview & Plot":
 # ---------------------------------------------------------
 # PAGE — MONTHLY EARNINGS
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# PAGE — MONTHLY EARNINGS
+# ---------------------------------------------------------
 elif subpage == "Monthly Earnings":
     st.header("Monthly Earnings")
 
@@ -474,22 +477,22 @@ elif subpage == "Monthly Earnings":
             for r in rounds
         ])
 
-        # Compute amount
-        def compute_amount(row):
-            if row["type"] == "Deskwork":
-                return (row["hours_worked"] or 0) * row["rate"]
-            else:
-                return (row["hours_per_round"] or 0) * row["rate"]
+        # unified hours and amount (always hours * rate)
+        def compute_hours(row):
+            if row["hours_worked"] is not None:
+                return row["hours_worked"] or 0
+            return row["hours_per_round"] or 0
 
-        df["amount"] = df.apply(compute_amount, axis=1)
+        df["hours"] = df.apply(compute_hours, axis=1)
+        df["amount"] = df["hours"] * df["rate"]
         df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
 
         # ---------------------------------------------------------
         # MULTI-MONTH SELECTION
         # ---------------------------------------------------------
-        st.subheader("Select Month(s)")
+        st.subheader("Select month(s)")
         months = sorted(df["month"].unique())
-        selected_months = st.multiselect("Months", months, default=months[-1])
+        selected_months = st.multiselect("Months", months, default=[months[-1]])
 
         if not selected_months:
             st.info("Select at least one month.")
@@ -504,57 +507,62 @@ elif subpage == "Monthly Earnings":
         vat = subtotal * 0.21
         total = subtotal + vat
 
-        st.metric("Subtotal", f"€ {subtotal:,.2f}")
-        st.metric("VAT 21%", f"€ {vat:,.2f}")
-        st.metric("Total", f"€ {total:,.2f}")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Subtotal", f"€ {subtotal:,.2f}")
+        with col2:
+            st.metric("VAT 21%", f"€ {vat:,.2f}")
+        with col3:
+            st.metric("Total", f"€ {total:,.2f}")
 
         st.markdown("---")
 
         # ---------------------------------------------------------
         # HOURS PER ASSIGNMENT
         # ---------------------------------------------------------
-        st.subheader("Hours per Assignment")
-
-        df_month["hours_calc"] = df_month.apply(
-            lambda r: r["hours_worked"] if r["type"] == "Deskwork" else r["hours_per_round"],
-            axis=1
-        )
+        st.subheader("Hours per assignment")
 
         hours_assignment = (
-            df_month.groupby("assignment")["hours_calc"]
+            df_month.groupby("assignment")["hours"]
             .sum()
             .reset_index()
-            .sort_values("hours_calc", ascending=False)
+            .sort_values("hours", ascending=False)
         )
-
-        st.dataframe(hours_assignment)
+        st.dataframe(hours_assignment, use_container_width=True)
 
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # HOURS PER AREA
+        # HOURS PER AREA (NESTED BY ASSIGNMENT, WITH MONEY)
         # ---------------------------------------------------------
-        st.subheader("Hours per Area")
+        st.subheader("Hours and earnings per area (by assignment)")
 
         df_area = df_month.dropna(subset=["area"])
 
-        hours_area = (
-            df_area.groupby("area")["hours_calc"]
-            .sum()
+        area_assignment = (
+            df_area.groupby(["area", "assignment"])
+            .agg(hours=("hours", "sum"), amount=("amount", "sum"))
             .reset_index()
-            .sort_values("hours_calc", ascending=False)
         )
 
-        st.dataframe(hours_area)
+        for area in sorted(area_assignment["area"].unique()):
+            st.markdown(f"**Area: {area}**")
+            df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
+            for _, row in df_area_block.iterrows():
+                st.markdown(
+                    f"- {row['assignment']}: "
+                    f"{row['hours']:.2f} hours — € {row['amount']:,.2f}"
+                )
+            st.markdown("")
 
         st.markdown("---")
 
         # ---------------------------------------------------------
         # TOTAL PER ASSIGNMENT (EARNINGS)
         # ---------------------------------------------------------
-        st.subheader("Total Earnings per Assignment")
+        st.subheader("Total earnings per assignment")
 
-        totals = (
+        earnings_assignment = (
             df_month.groupby("assignment")["amount"]
             .sum()
             .reset_index()
@@ -562,7 +570,7 @@ elif subpage == "Monthly Earnings":
         )
 
         st.bar_chart(
-            data=totals,
+            data=earnings_assignment,
             x="assignment",
             y="amount",
             use_container_width=True
@@ -573,7 +581,7 @@ elif subpage == "Monthly Earnings":
         # ---------------------------------------------------------
         # STACKED BAR CHART BY TYPE
         # ---------------------------------------------------------
-        st.subheader("Monthly Earnings by Type (Stacked)")
+        st.subheader("Monthly earnings by type (stacked)")
 
         chart = (
             alt.Chart(df_month)
@@ -593,44 +601,133 @@ elif subpage == "Monthly Earnings":
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # PDF EXPORT
+        # HOURLY WAGE PER ASSIGNMENT
         # ---------------------------------------------------------
-        st.subheader("Export Invoice as PDF")
+        wage_assignment = (
+            df_month.groupby("assignment")["rate"]
+            .first()
+            .reset_index()
+            .sort_values("assignment")
+        )
+
+        st.subheader("Hourly wage per assignment")
+        st.dataframe(wage_assignment, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # PDF EXPORT (MULTI-PAGE)
+        # ---------------------------------------------------------
+        st.subheader("Export invoice as PDF")
 
         if st.button("Generate PDF"):
             buffer = io.BytesIO()
             pdf = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
 
+            # PAGE 1: SUMMARY
             pdf.setFont("Helvetica-Bold", 16)
-            pdf.drawString(50, 800, f"Invoice — {', '.join(selected_months)}")
+            pdf.drawString(50, height - 50, f"Invoice — {', '.join(selected_months)}")
 
             pdf.setFont("Helvetica", 12)
-            pdf.drawString(50, 770, f"Subtotal: € {subtotal:,.2f}")
-            pdf.drawString(50, 750, f"VAT 21%: € {vat:,.2f}")
-            pdf.drawString(50, 730, f"Total: € {total:,.2f}")
+            pdf.drawString(50, height - 90, f"Subtotal: € {subtotal:,.2f}")
+            pdf.drawString(50, height - 110, f"VAT 21%: € {vat:,.2f}")
+            pdf.drawString(50, height - 130, f"Total: € {total:,.2f}")
 
-            # Earnings per assignment
-            pdf.drawString(50, 700, "Earnings per assignment:")
-            y = 680
-            for _, row in totals.iterrows():
+            pdf.showPage()
+
+            # PAGE 2: HOURLY WAGE PER ASSIGNMENT
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(50, height - 50, "Hourly wage per assignment")
+
+            pdf.setFont("Helvetica", 12)
+            y = height - 80
+            for _, row in wage_assignment.iterrows():
+                pdf.drawString(60, y, f"{row['assignment']}: € {row['rate']:,.2f} / hour")
+                y -= 18
+                if y < 60:
+                    pdf.showPage()
+                    pdf.setFont("Helvetica-Bold", 14)
+                    pdf.drawString(50, height - 50, "Hourly wage per assignment (cont.)")
+                    pdf.setFont("Helvetica", 12)
+                    y = height - 80
+
+            pdf.showPage()
+
+            # PAGE 3: HOURS PER ASSIGNMENT
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(50, height - 50, "Hours per assignment")
+
+            pdf.setFont("Helvetica", 12)
+            y = height - 80
+            for _, row in hours_assignment.iterrows():
+                pdf.drawString(60, y, f"{row['assignment']}: {row['hours']:.2f} hours")
+                y -= 18
+                if y < 60:
+                    pdf.showPage()
+                    pdf.setFont("Helvetica-Bold", 14)
+                    pdf.drawString(50, height - 50, "Hours per assignment (cont.)")
+                    pdf.setFont("Helvetica", 12)
+                    y = height - 80
+
+            pdf.showPage()
+
+            # PAGE 4: EARNINGS PER ASSIGNMENT
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(50, height - 50, "Earnings per assignment")
+
+            pdf.setFont("Helvetica", 12)
+            y = height - 80
+            for _, row in earnings_assignment.iterrows():
                 pdf.drawString(60, y, f"{row['assignment']}: € {row['amount']:,.2f}")
                 y -= 18
+                if y < 60:
+                    pdf.showPage()
+                    pdf.setFont("Helvetica-Bold", 14)
+                    pdf.drawString(50, height - 50, "Earnings per assignment (cont.)")
+                    pdf.setFont("Helvetica", 12)
+                    y = height - 80
 
-            # Hours per assignment
-            y -= 10
-            pdf.drawString(50, y, "Hours per assignment:")
-            y -= 20
-            for _, row in hours_assignment.iterrows():
-                pdf.drawString(60, y, f"{row['assignment']}: {row['hours_calc']:.2f} hours")
-                y -= 18
+            pdf.showPage()
 
-            # Hours per area
-            y -= 10
-            pdf.drawString(50, y, "Hours per area:")
-            y -= 20
-            for _, row in hours_area.iterrows():
-                pdf.drawString(60, y, f"{row['area']}: {row['hours_calc']:.2f} hours")
-                y -= 18
+            # PAGE 5+: HOURS & MONEY PER AREA (BY ASSIGNMENT)
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment)")
+
+            pdf.setFont("Helvetica", 12)
+            y = height - 80
+
+            for area in sorted(area_assignment["area"].unique()):
+                pdf.setFont("Helvetica-Bold", 12)
+                pdf.drawString(50, y, f"Area: {area}")
+                y -= 20
+
+                pdf.setFont("Helvetica", 12)
+                df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
+                for _, row in df_area_block.iterrows():
+                    line = (
+                        f"- {row['assignment']}: "
+                        f"{row['hours']:.2f} hours — € {row['amount']:,.2f}"
+                    )
+                    pdf.drawString(60, y, line)
+                    y -= 18
+                    if y < 60:
+                        pdf.showPage()
+                        pdf.setFont("Helvetica-Bold", 14)
+                        pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment) (cont.)")
+                        pdf.setFont("Helvetica-Bold", 12)
+                        y = height - 80
+                        pdf.drawString(50, y, f"Area: {area} (cont.)")
+                        y -= 20
+                        pdf.setFont("Helvetica", 12)
+
+                y -= 10
+                if y < 60:
+                    pdf.showPage()
+                    pdf.setFont("Helvetica-Bold", 14)
+                    pdf.drawString(50, height - 50, "Hours and earnings per area (by assignment) (cont.)")
+                    pdf.setFont("Helvetica", 12)
+                    y = height - 80
 
             pdf.showPage()
             pdf.save()
@@ -638,7 +735,7 @@ elif subpage == "Monthly Earnings":
             buffer.seek(0)
 
             st.download_button(
-                label="Download PDF Invoice",
+                label="Download PDF invoice",
                 data=buffer,
                 file_name=f"invoice_{'_'.join(selected_months)}.pdf",
                 mime="application/pdf"
