@@ -26,7 +26,6 @@ def check_password():
             type="password"
         )
 
-        # Login button
         if st.button("Login"):
             if st.session_state["password_input"] == st.secrets["PASSWORD"]:
                 st.session_state["authenticated"] = True
