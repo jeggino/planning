@@ -618,6 +618,7 @@ elif subpage == "Monthly Earnings":
             import qrcode
             from reportlab.lib import colors
             from reportlab.lib.utils import ImageReader
+            from reportlab.platypus import Table, TableStyle
         
             # ---------------------------------------------------------
             # LOAD BUSINESS INFO FROM SECRETS
@@ -649,16 +650,6 @@ elif subpage == "Monthly Earnings":
             factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
         
             # ---------------------------------------------------------
-            # CREATE PLACEHOLDER IDEAL QR
-            # ---------------------------------------------------------
-            ideal_url = f"https://example.com/betaal-hier?factuur={factuurnummer}"
-            qr_img = qrcode.make(ideal_url)
-            qr_buffer = io.BytesIO()
-            qr_img.save(qr_buffer, format="PNG")
-            qr_buffer.seek(0)
-            qr_reader = ImageReader(qr_buffer)
-        
-            # ---------------------------------------------------------
             # PDF START
             # ---------------------------------------------------------
             buffer = io.BytesIO()
@@ -666,32 +657,23 @@ elif subpage == "Monthly Earnings":
             width, height = A4
         
             # ---------------------------------------------------------
-            # PAGE 1 — HEADER + OPDRACHTGEVER/OPDRACHTNEMER + OVERZICHT
+            # PAGE 1 — HEADER (TOP RIGHT)
             # ---------------------------------------------------------
-        
-            # QR CODE (TOP LEFT)
-            qr_size = 90
-            pdf.drawImage(qr_reader, 70, height - 150, qr_size, qr_size, preserveAspectRatio=True, mask='auto')
-            pdf.setFont("Helvetica", 8)
-            pdf.drawString(70, height - 160, "Scan om te betalen")
-        
-            # TITLE (TOP RIGHT)
             pdf.setFont("Helvetica-Bold", 22)
-            pdf.setFillColor(colors.black)
             pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
         
-            # SUBTITLE (TOP RIGHT)
             pdf.setFont("Helvetica", 12)
             pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
         
-            # SUBHEADER (SMALLER FONT)
             pdf.setFont("Helvetica", 10)
             pdf.drawRightString(width - 40, height - 115, f"Factuurdatum: {factuurdatum}")
+        
+            # TIGHT SEPARATION (~35px)
+            y = height - 150
         
             # ---------------------------------------------------------
             # OPDRACHTGEVER
             # ---------------------------------------------------------
-            y = height - 170
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(70, y, "Opdrachtgever")
             y -= 18
@@ -743,106 +725,23 @@ elif subpage == "Monthly Earnings":
             y -= 30
         
             # ---------------------------------------------------------
-            # UURTARIEF PER OPDRACHT
+            # BUILD TABLE DATA (A3 VERSION 2)
             # ---------------------------------------------------------
-            pdf.setFont("Helvetica-Bold", 13)
-            pdf.drawString(70, y, "Uurtarief per opdracht")
-            y -= 22
+            table_data = [
+                ["Opdracht", "Uurtarief", "Uren", "Inkomsten"]
+            ]
         
-            pdf.setFont("Helvetica", 10)
-            for _, row in wage_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: € {row['rate']:,.2f} / uur")
-                y -= 14
-        
-            # ---------------------------------------------------------
-            # UREN & INKOMSTEN PER OPDRACHT (COMBINED)
-            # ---------------------------------------------------------
-            y -= 25
-            pdf.setFont("Helvetica-Bold", 13)
-            pdf.drawString(70, y, "Uren & inkomsten per opdracht")
-            y -= 22
-        
-            pdf.setFont("Helvetica", 10)
             for _, row in hours_assignment.iterrows():
+                rate = wage_assignment.loc[
+                    wage_assignment["assignment"] == row["assignment"], "rate"
+                ].values[0]
+        
                 amount = earnings_assignment.loc[
                     earnings_assignment["assignment"] == row["assignment"], "amount"
                 ].values[0]
         
-                pdf.drawString(
-                    80, y,
-                    f"{row['assignment']}: {row['hours']:.2f} uur — € {amount:,.2f}"
-                )
-                y -= 14
-        
-            # ---------------------------------------------------------
-            # TOTALS (TOTAAL IN BLUE)
-            # ---------------------------------------------------------
-            y -= 25
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.setFillColor(colors.black)
-            pdf.drawString(70, y, f"Subtotaal: € {subtotal:,.2f}")
-        
-            y -= 18
-            pdf.drawString(70, y, f"BTW 21%: € {vat:,.2f}")
-        
-            y -= 18
-            pdf.setFillColor(colors.blue)
-            pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
-        
-            # FOOTER PAGE 1
-            pdf.setFont("Helvetica", 8)
-            pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
-            pdf.drawRightString(width - 40, 30, "Pagina 1")
-        
-            pdf.showPage()
-        
-            # ---------------------------------------------------------
-            # PAGE 2 — VELDWERK
-            # ---------------------------------------------------------
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 18)
-            pdf.drawString(70, height - 50, "Veldwerk")
-        
-            # LINE UNDER VELDWERK
-            pdf.setLineWidth(1)
-            pdf.line(70, height - 60, width - 40, height - 60)
-        
-            y = height - 100
-            pdf.setFont("Helvetica", 10)
-        
-            for area in sorted(area_assignment["area"].unique()):
-                pdf.setFont("Helvetica-Bold", 11)
-                pdf.drawString(70, y, f"Gebied: {area}")
-                y -= 18
-        
-                pdf.setFont("Helvetica", 10)
-                df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
-                for _, row in df_area_block.iterrows():
-                    pdf.drawString(80, y, f"- {row['assignment']}: {row['hours']:.2f} uur — € {row['amount']:,.2f}")
-                    y -= 14
-        
-                    if y < 70:
-                        break
-        
-                y -= 10
-                if y < 70:
-                    break
-        
-            # FOOTER PAGE 2
-            pdf.setFont("Helvetica", 8)
-            pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
-            pdf.drawRightString(width - 40, 30, "Pagina 2")
-        
-            pdf.showPage()
-            pdf.save()
-        
-            buffer.seek(0)
-        
-            st.download_button(
-                label="Download PDF invoice",
-                data=buffer,
-                file_name=f"factuur_{factuurnummer}.pdf",
-                mime="application/pdf"
-            )
+                table_data.append([
+                    row["assignment"],
+                    f"€ {rate:,.2f} / uur",
+                    f"{row['hours']:.0f}",
+                    f"€ {amount:,.2
