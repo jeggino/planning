@@ -613,6 +613,10 @@ elif subpage == "Monthly Earnings":
         st.subheader("Export invoice as PDF")
 
 
+        # --- CALCULATE TOTAL HOURS + INCOME FOR VELDWERK ---
+        total_vw_hours = area_assignment["hours"].sum()
+        total_vw_income = area_assignment["amount"].sum()
+        
         if st.button("Generate PDF"):
             import random
             import qrcode
@@ -669,11 +673,9 @@ elif subpage == "Monthly Earnings":
             pdf.drawRightString(width - 40, height - 115, f"Factuurdatum: {factuurdatum}")
         
             # ---------------------------------------------------------
-            # BOTTOM-ALIGN PAGE 1 CONTENT
+            # ORIGINAL Y POSITION (unchanged)
             # ---------------------------------------------------------
-            # We reserve ~120 px above footer
-            bottom_margin = 120
-            y = bottom_margin + 300   # pushes content down but leaves room for table + totals
+            y = height - 150
         
             # ---------------------------------------------------------
             # OPDRACHTGEVER
@@ -731,7 +733,7 @@ elif subpage == "Monthly Earnings":
             y -= 30
         
             # ---------------------------------------------------------
-            # BUILD TABLE DATA (A3 VERSION 2)
+            # BUILD TABLE DATA (A3 VERSION 2, WIDER + SMALLER FONT)
             # ---------------------------------------------------------
             table_data = [
                 ["Opdracht", "Uurtarief", "Uren", "Inkomsten"]
@@ -753,19 +755,22 @@ elif subpage == "Monthly Earnings":
                     f"€ {amount:,.2f}"
                 ])
         
-                table_data.append(["", "", "", ""])  # extra padding row
+                table_data.append(["", "", "", ""])  # padding row
         
             # ---------------------------------------------------------
-            # CREATE TABLE (MEDIUM WIDTH)
+            # CREATE TABLE (WIDER + SMALLER FONT)
             # ---------------------------------------------------------
-            table = Table(table_data, colWidths=[140, 110, 60, 110])
+            table = Table(
+                table_data,
+                colWidths=[180, 120, 60, 120]   # wider table
+            )
         
             table.setStyle(TableStyle([
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 11),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),   # smaller header
         
                 ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 1), (-1, -1), 10),
+                ("FONTSIZE", (0, 1), (-1, -1), 9),   # smaller rows
         
                 ("ALIGN", (1, 1), (-1, -1), "LEFT"),
         
@@ -773,13 +778,13 @@ elif subpage == "Monthly Earnings":
                 ("LINEABOVE", (0, 0), (-1, 0), 2, colors.black),
                 ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
         
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]))
         
-            table_height = len(table_data) * 18
+            table_height = len(table_data) * 16
             table.wrapOn(pdf, width, height)
             table.drawOn(pdf, 70, y - table_height)
         
@@ -808,11 +813,15 @@ elif subpage == "Monthly Earnings":
             pdf.showPage()
         
             # ---------------------------------------------------------
-            # PAGE 2 — VELDWERK (UNCHANGED)
+            # PAGE 2 — VELDWERK (WITH TOTALS IN BRACKETS)
             # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 18)
             pdf.setFillColor(colors.black)
-            pdf.drawString(70, height - 70, "Veldwerk")
+            pdf.drawString(
+                70,
+                height - 70,
+                f"Veldwerk ({total_vw_hours:.2f} uur — € {total_vw_income:,.2f})"
+            )
         
             pdf.setLineWidth(1)
             pdf.line(70, height - 80, width - 40, height - 80)
