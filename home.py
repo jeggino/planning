@@ -663,9 +663,11 @@ elif subpage == "Monthly Earnings":
             # ---------------------------------------------------------
             # PAGE 1 — HEADER (TOP RIGHT)
             # ---------------------------------------------------------
+            pdf.setFillColor(colors.blue)
             pdf.setFont("Helvetica-Bold", 22)
             pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
-        
+
+            pdf.setFillColor(colors.black)
             pdf.setFont("Helvetica", 12)
             pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
         
@@ -820,7 +822,7 @@ elif subpage == "Monthly Earnings":
             pdf.drawString(
                 70,
                 height - 70,
-                f"Veldwerk ({total_vw_hours:.2f} uuren — € {total_vw_income:,.2f})"
+                f"Veldwerk ({total_vw_hours:.2f} uren — € {total_vw_income:,.2f})"
             )
         
             pdf.setLineWidth(1)
