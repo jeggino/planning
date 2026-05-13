@@ -730,7 +730,7 @@ elif subpage == "Monthly Earnings":
             pdf.setStrokeColor(colors.black)
             pdf.line(70, y, width - 40, y)
         
-            y -= 30
+            y -= 80
         
             # ---------------------------------------------------------
             # BUILD TABLE DATA (A3 VERSION 2, WIDER + SMALLER FONT)
