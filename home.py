@@ -804,12 +804,12 @@ elif subpage == "Monthly Earnings":
         
             y -= 18
             pdf.setFillColor(colors.red)
-            pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
+            pdf.drawString(70, y, f"Totaal: € {total:,.2f}*")
         
             # FOOTER PAGE 1
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, f"Betaling dient binnen 2 weken na factuurdatum te geschieden.")
+            pdf.drawString(70, 30, f"*Betaling dient binnen 2 weken na factuurdatum te geschieden.")
             pdf.drawRightString(width - 40, 30, "Pagina 1")
         
             pdf.showPage()
