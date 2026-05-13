@@ -647,7 +647,7 @@ elif subpage == "Monthly Earnings":
             # ---------------------------------------------------------
             vandaag = datetime.today()
             factuurdatum = vandaag.strftime("%d-%m-%Y")
-            factuurnummer = "{}-{}".format(vandaag.strftime("%Y%m%d"), random.randint(1000, 9999))
+            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
         
             # ---------------------------------------------------------
             # PDF START
@@ -660,13 +660,13 @@ elif subpage == "Monthly Earnings":
             # PAGE 1 — HEADER (TOP RIGHT)
             # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawRightString(width - 40, height - 70, "Factuur {}".format(factuurnummer))
+            pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
         
             pdf.setFont("Helvetica", 12)
-            pdf.drawRightString(width - 40, height - 95, "Periode(s): {}".format(", ".join(selected_months)))
+            pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
         
             pdf.setFont("Helvetica", 10)
-            pdf.drawRightString(width - 40, height - 115, "Factuurdatum: {}".format(factuurdatum))
+            pdf.drawRightString(width - 40, height - 115, f"Factuurdatum: {factuurdatum}")
         
             # TIGHT SEPARATION (~35px)
             y = height - 150
@@ -683,7 +683,7 @@ elif subpage == "Monthly Earnings":
             y -= 14
             pdf.drawString(70, y, klant_adres)
             y -= 14
-            pdf.drawString(70, y, "{} {}".format(klant_postcode, klant_stad))
+            pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
         
             # HALF LINE
             y -= 10
@@ -704,17 +704,17 @@ elif subpage == "Monthly Earnings":
             y -= 14
             pdf.drawString(70, y, eigen_adres)
             y -= 14
-            pdf.drawString(70, y, "{} {}".format(eigen_postcode, eigen_stad))
+            pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
             y -= 14
-            pdf.drawString(70, y, "Mobiel: {}".format(eigen_mobiel))
+            pdf.drawString(70, y, f"Mobiel: {eigen_mobiel}")
             y -= 14
-            pdf.drawString(70, y, "E-mail: {}".format(eigen_email))
+            pdf.drawString(70, y, f"E-mail: {eigen_email}")
             y -= 14
-            pdf.drawString(70, y, "KvK: {}".format(eigen_kvk))
+            pdf.drawString(70, y, f"KvK: {eigen_kvk}")
             y -= 14
-            pdf.drawString(70, y, "BTW: {}".format(eigen_btw))
+            pdf.drawString(70, y, f"BTW: {eigen_btw}")
             y -= 14
-            pdf.drawString(70, y, "IBAN: {}".format(eigen_iban))
+            pdf.drawString(70, y, f"IBAN: {eigen_iban}")
         
             # ---------------------------------------------------------
             # FULL LINE BEFORE OVERZICHT OPDRACHTEN
@@ -751,9 +751,9 @@ elif subpage == "Monthly Earnings":
         
                 table_data.append([
                     row["assignment"],
-                    "€ {rt:,.2f} / uur".format(rt=rate),
-                    "{hrs:.0f}".format(hrs=row["hours"]),
-                    "€ {amt:,.2f}".format(amt=amount)
+                    f"€ {rate:,.2f} / uur",
+                    f"{row['hours']:.0f}",
+                    f"€ {amount:,.2f}"
                 ])
         
                 table_data.append(["", "", "", ""])  # extra padding row
@@ -793,19 +793,19 @@ elif subpage == "Monthly Earnings":
             # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 12)
             pdf.setFillColor(colors.black)
-            pdf.drawString(70, y, "Subtotaal: € {st:,.2f}".format(st=subtotal))
+            pdf.drawString(70, y, f"Subtotaal: € {subtotal:,.2f}")
         
             y -= 18
-            pdf.drawString(70, y, "BTW 21%: € {btw:,.2f}".format(btw=vat))
+            pdf.drawString(70, y, f"BTW 21%: € {vat:,.2f}")
         
             y -= 18
             pdf.setFillColor(colors.blue)
-            pdf.drawString(70, y, "Totaal: € {tot:,.2f}".format(tot=total))
+            pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
         
             # FOOTER PAGE 1
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, "{} • {} • IBAN: {}".format(eigen_naam, eigen_email, eigen_iban))
+            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
             pdf.drawRightString(width - 40, 30, "Pagina 1")
         
             pdf.showPage()
@@ -826,7 +826,7 @@ elif subpage == "Monthly Earnings":
         
             for area in sorted(area_assignment["area"].unique()):
                 pdf.setFont("Helvetica-Bold", 11)
-                pdf.drawString(70, y, "Gebied: {}".format(area))
+                pdf.drawString(70, y, f"Gebied: {area}")
                 y -= 18
         
                 pdf.setFont("Helvetica", 10)
@@ -835,11 +835,7 @@ elif subpage == "Monthly Earnings":
                     pdf.drawString(
                         80,
                         y,
-                        "- {ass}: {hrs:.2f} uur — € {amt:,.2f}".format(
-                            ass=row["assignment"],
-                            hrs=row["hours"],
-                            amt=row["amount"]
-                        )
+                        f"- {row['assignment']}: {row['hours']:.2f} uur — € {row['amount']:,.2f}"
                     )
                     y -= 14
         
@@ -853,7 +849,7 @@ elif subpage == "Monthly Earnings":
             # FOOTER PAGE 2
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, "{} • {} • IBAN: {}".format(eigen_naam, eigen_email, eigen_iban))
+            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
             pdf.drawRightString(width - 40, 30, "Pagina 2")
         
             pdf.showPage()
@@ -864,6 +860,6 @@ elif subpage == "Monthly Earnings":
             st.download_button(
                 label="Download PDF invoice",
                 data=buffer,
-                file_name="factuur_{}.pdf".format(factuurnummer),
-        mime="application/pdf"
-    )
+                file_name=f"factuur_{factuurnummer}.pdf",
+                mime="application/pdf"
+            )
