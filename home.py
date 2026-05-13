@@ -647,7 +647,7 @@ elif subpage == "Monthly Earnings":
             # ---------------------------------------------------------
             vandaag = datetime.today()
             factuurdatum = vandaag.strftime("%d-%m-%Y")
-            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
+            factuurnummer = "{}-{}".format(vandaag.strftime("%Y%m%d"), random.randint(1000, 9999))
         
             # ---------------------------------------------------------
             # PDF START
@@ -660,13 +660,13 @@ elif subpage == "Monthly Earnings":
             # PAGE 1 — HEADER (TOP RIGHT)
             # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
+            pdf.drawRightString(width - 40, height - 70, "Factuur {}".format(factuurnummer))
         
             pdf.setFont("Helvetica", 12)
-            pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
+            pdf.drawRightString(width - 40, height - 95, "Periode(s): {}".format(", ".join(selected_months)))
         
             pdf.setFont("Helvetica", 10)
-            pdf.drawRightString(width - 40, height - 115, f"Factuurdatum: {factuurdatum}")
+            pdf.drawRightString(width - 40, height - 115, "Factuurdatum: {}".format(factuurdatum))
         
             # TIGHT SEPARATION (~35px)
             y = height - 150
@@ -680,8 +680,10 @@ elif subpage == "Monthly Earnings":
         
             pdf.setFont("Helvetica", 10)
             pdf.drawString(70, y, klant_naam)
-            y -= 14; pdf.drawString(70, y, klant_adres)
-            y -= 14; pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
+            y -= 14
+            pdf.drawString(70, y, klant_adres)
+            y -= 14
+            pdf.drawString(70, y, "{} {}".format(klant_postcode, klant_stad))
         
             # HALF LINE
             y -= 10
@@ -699,13 +701,20 @@ elif subpage == "Monthly Earnings":
         
             pdf.setFont("Helvetica", 10)
             pdf.drawString(70, y, eigen_naam)
-            y -= 14; pdf.drawString(70, y, eigen_adres)
-            y -= 14; pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
-            y -= 14; pdf.drawString(70, y, f"Mobiel: {eigen_mobiel}")
-            y -= 14; pdf.drawString(70, y, f"E-mail: {eigen_email}")
-            y -= 14; pdf.drawString(70, y, f"KvK: {eigen_kvk}")
-            y -= 14; pdf.drawString(70, y, f"BTW: {eigen_btw}")
-            y -= 14; pdf.drawString(70, y, f"IBAN: {eigen_iban}")
+            y -= 14
+            pdf.drawString(70, y, eigen_adres)
+            y -= 14
+            pdf.drawString(70, y, "{} {}".format(eigen_postcode, eigen_stad))
+            y -= 14
+            pdf.drawString(70, y, "Mobiel: {}".format(eigen_mobiel))
+            y -= 14
+            pdf.drawString(70, y, "E-mail: {}".format(eigen_email))
+            y -= 14
+            pdf.drawString(70, y, "KvK: {}".format(eigen_kvk))
+            y -= 14
+            pdf.drawString(70, y, "BTW: {}".format(eigen_btw))
+            y -= 14
+            pdf.drawString(70, y, "IBAN: {}".format(eigen_iban))
         
             # ---------------------------------------------------------
             # FULL LINE BEFORE OVERZICHT OPDRACHTEN
@@ -742,6 +751,119 @@ elif subpage == "Monthly Earnings":
         
                 table_data.append([
                     row["assignment"],
-                    f"€ {rate:,.2f} / uur",
-                    f"{row['hours']:.0f}",
-                    f"€ {amount:,.2
+                    "€ {rt:,.2f} / uur".format(rt=rate),
+                    "{hrs:.0f}".format(hrs=row["hours"]),
+                    "€ {amt:,.2f}".format(amt=amount)
+                ])
+        
+                table_data.append(["", "", "", ""])  # extra padding row
+        
+            # ---------------------------------------------------------
+            # CREATE TABLE (MEDIUM WIDTH)
+            # ---------------------------------------------------------
+            table = Table(table_data, colWidths=[140, 110, 60, 110])
+        
+            table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 11),
+        
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), 10),
+        
+                ("ALIGN", (1, 1), (-1, -1), "LEFT"),
+        
+                ("BOX", (0, 0), (-1, -1), 1, colors.black),
+                ("LINEABOVE", (0, 0), (-1, 0), 2, colors.black),
+                ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
+        
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+        
+            table_height = len(table_data) * 18
+            table.wrapOn(pdf, width, height)
+            table.drawOn(pdf, 70, y - table_height)
+        
+            y = y - table_height - 40
+        
+            # ---------------------------------------------------------
+            # TOTALS
+            # ---------------------------------------------------------
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.setFillColor(colors.black)
+            pdf.drawString(70, y, "Subtotaal: € {st:,.2f}".format(st=subtotal))
+        
+            y -= 18
+            pdf.drawString(70, y, "BTW 21%: € {btw:,.2f}".format(btw=vat))
+        
+            y -= 18
+            pdf.setFillColor(colors.blue)
+            pdf.drawString(70, y, "Totaal: € {tot:,.2f}".format(tot=total))
+        
+            # FOOTER PAGE 1
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(colors.grey)
+            pdf.drawString(70, 30, "{} • {} • IBAN: {}".format(eigen_naam, eigen_email, eigen_iban))
+            pdf.drawRightString(width - 40, 30, "Pagina 1")
+        
+            pdf.showPage()
+        
+            # ---------------------------------------------------------
+            # PAGE 2 — VELDWERK
+            # ---------------------------------------------------------
+            pdf.setFont("Helvetica-Bold", 18)
+            pdf.setFillColor(colors.black)
+            pdf.drawString(70, height - 70, "Veldwerk")
+        
+            # LINE UNDER TITLE
+            pdf.setLineWidth(1)
+            pdf.line(70, height - 80, width - 40, height - 80)
+        
+            y = height - 120
+            pdf.setFont("Helvetica", 10)
+        
+            for area in sorted(area_assignment["area"].unique()):
+                pdf.setFont("Helvetica-Bold", 11)
+                pdf.drawString(70, y, "Gebied: {}".format(area))
+                y -= 18
+        
+                pdf.setFont("Helvetica", 10)
+                df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
+                for _, row in df_area_block.iterrows():
+                    pdf.drawString(
+                        80,
+                        y,
+                        "- {ass}: {hrs:.2f} uur — € {amt:,.2f}".format(
+                            ass=row["assignment"],
+                            hrs=row["hours"],
+                            amt=row["amount"]
+                        )
+                    )
+                    y -= 14
+        
+                    if y < 70:
+                        break
+        
+                y -= 10
+                if y < 70:
+                    break
+        
+            # FOOTER PAGE 2
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(colors.grey)
+            pdf.drawString(70, 30, "{} • {} • IBAN: {}".format(eigen_naam, eigen_email, eigen_iban))
+            pdf.drawRightString(width - 40, 30, "Pagina 2")
+        
+            pdf.showPage()
+            pdf.save()
+        
+            buffer.seek(0)
+        
+            st.download_button(
+                label="Download PDF invoice",
+                data=buffer,
+                file_name="factuur_{}.pdf".format(factuurnummer),
+        mime="application/pdf"
+    )
