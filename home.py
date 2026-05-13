@@ -801,13 +801,13 @@ elif subpage == "Monthly Earnings":
             pdf.drawString(70, y, f"BTW 21%: € {vat:,.2f}")
         
             y -= 18
-            pdf.setFillColor(colors.blue)
+            pdf.setFillColor(colors.red)
             pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
         
             # FOOTER PAGE 1
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
+            pdf.drawString(70, 30, f"Betaling dient binnen 2 weken na factuurdatum te geschieden.")
             pdf.drawRightString(width - 40, 30, "Pagina 1")
         
             pdf.showPage()
@@ -820,7 +820,7 @@ elif subpage == "Monthly Earnings":
             pdf.drawString(
                 70,
                 height - 70,
-                f"Veldwerk ({total_vw_hours:.2f} uur — € {total_vw_income:,.2f})"
+                f"Veldwerk ({total_vw_hours:.2f} uuren — € {total_vw_income:,.2f})"
             )
         
             pdf.setLineWidth(1)
@@ -853,7 +853,7 @@ elif subpage == "Monthly Earnings":
         
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(colors.grey)
-            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
+            # pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
             pdf.drawRightString(width - 40, 30, "Pagina 2")
         
             pdf.showPage()
