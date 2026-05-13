@@ -668,8 +668,12 @@ elif subpage == "Monthly Earnings":
             pdf.setFont("Helvetica", 10)
             pdf.drawRightString(width - 40, height - 115, f"Factuurdatum: {factuurdatum}")
         
-            # TIGHT SEPARATION (~35px)
-            y = height - 150
+            # ---------------------------------------------------------
+            # BOTTOM-ALIGN PAGE 1 CONTENT
+            # ---------------------------------------------------------
+            # We reserve ~120 px above footer
+            bottom_margin = 120
+            y = bottom_margin + 300   # pushes content down but leaves room for table + totals
         
             # ---------------------------------------------------------
             # OPDRACHTGEVER
@@ -717,20 +721,13 @@ elif subpage == "Monthly Earnings":
             pdf.drawString(70, y, f"IBAN: {eigen_iban}")
         
             # ---------------------------------------------------------
-            # FULL LINE BEFORE OVERZICHT OPDRACHTEN
+            # FULL LINE BEFORE TABLE
             # ---------------------------------------------------------
             y -= 20
             pdf.setLineWidth(1)
             pdf.setStrokeColor(colors.black)
             pdf.line(70, y, width - 40, y)
         
-            y -= 30
-        
-            # ---------------------------------------------------------
-            # OVERZICHT OPDRACHTEN
-            # ---------------------------------------------------------
-            pdf.setFont("Helvetica-Bold", 16)
-            pdf.drawString(70, y, "Overzicht opdrachten")
             y -= 30
         
             # ---------------------------------------------------------
@@ -811,13 +808,12 @@ elif subpage == "Monthly Earnings":
             pdf.showPage()
         
             # ---------------------------------------------------------
-            # PAGE 2 — VELDWERK
+            # PAGE 2 — VELDWERK (UNCHANGED)
             # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 18)
             pdf.setFillColor(colors.black)
             pdf.drawString(70, height - 70, "Veldwerk")
         
-            # LINE UNDER TITLE
             pdf.setLineWidth(1)
             pdf.line(70, height - 80, width - 40, height - 80)
         
@@ -846,7 +842,6 @@ elif subpage == "Monthly Earnings":
                 if y < 70:
                     break
         
-            # FOOTER PAGE 2
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(colors.grey)
             pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
