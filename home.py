@@ -11,22 +11,37 @@ import io
 # PASSWORD PROTECTION
 # ---------------------------------------------------------
 def check_password():
-    st.session_state["authenticated"] = False
+    # Initialize session state variables
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+    if "password_input" not in st.session_state:
+        st.session_state["password_input"] = ""
 
-    if "password_entered" not in st.session_state:
-        st.session_state["password_entered"] = ""
+    # If not authenticated, show login UI
+    if not st.session_state["authenticated"]:
+        st.subheader("Login")
 
-    def password_entered():
-        if st.session_state["password_entered"] == st.secrets["PASSWORD"]:
-            st.session_state["authenticated"] = True
-        else:
-            st.error("Incorrect password")
+        st.session_state["password_input"] = st.text_input(
+            "Enter password",
+            type="password"
+        )
 
-    if not st.session_state.get("authenticated", False):
-        st.text_input("Enter password", type="password", key="password_entered", on_change=password_entered)
-        st.stop()
+        # Login button
+        if st.button("Login"):
+            if st.session_state["password_input"] == st.secrets["PASSWORD"]:
+                st.session_state["authenticated"] = True
+                st.success("Access granted")
+            else:
+                st.error("Incorrect password")
+                st.session_state["authenticated"] = False
 
+        # Stop the app until authenticated
+        if not st.session_state["authenticated"]:
+            st.stop()
+
+# Run the check
 check_password()
+
 
 # ---------------------------------------------------------
 # DARK MODE CSS
