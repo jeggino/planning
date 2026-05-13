@@ -697,7 +697,7 @@ elif subpage == "Monthly Earnings":
             y -= 10
             pdf.setLineWidth(0.5)
             pdf.setStrokeColor(colors.grey)
-            pdf.line(70, y, width - 40, y)
+            pdf.line(70, y, width - 80, y)
         
             # ---------------------------------------------------------
             # OPDRACHTNEMER
