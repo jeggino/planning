@@ -10,23 +10,23 @@ import io
 # ---------------------------------------------------------
 # PASSWORD PROTECTION
 # ---------------------------------------------------------
-# def check_password():
-#     st.session_state["authenticated"] = False
+def check_password():
+    st.session_state["authenticated"] = False
 
-#     if "password_entered" not in st.session_state:
-#         st.session_state["password_entered"] = ""
+    if "password_entered" not in st.session_state:
+        st.session_state["password_entered"] = ""
 
-#     def password_entered():
-#         if st.session_state["password_entered"] == st.secrets["PASSWORD"]:
-#             st.session_state["authenticated"] = True
-#         else:
-#             st.error("Incorrect password")
+    def password_entered():
+        if st.session_state["password_entered"] == st.secrets["PASSWORD"]:
+            st.session_state["authenticated"] = True
+        else:
+            st.error("Incorrect password")
 
-#     if not st.session_state.get("authenticated", False):
-#         st.text_input("Enter password", type="password", key="password_entered", on_change=password_entered)
-#         st.stop()
+    if not st.session_state.get("authenticated", False):
+        st.text_input("Enter password", type="password", key="password_entered", on_change=password_entered)
+        st.stop()
 
-# check_password()
+check_password()
 
 # ---------------------------------------------------------
 # DARK MODE CSS
