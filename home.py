@@ -655,26 +655,27 @@ elif subpage == "Monthly Earnings":
             # PAGE 1 — HEADER + OPDRACHTGEVER/OPDRACHTNEMER + OVERZICHT
             # ---------------------------------------------------------
         
-            # QR CODE (LEFT TOP)
+            # QR CODE (TOP LEFT)
             qr_size = 90
             pdf.drawImage(qr_reader, 70, height - 150, qr_size, qr_size, preserveAspectRatio=True, mask='auto')
             pdf.setFont("Helvetica", 8)
             pdf.drawString(70, height - 160, "Scan om te betalen")
         
-            # TITLE LEFT
+            # TITLE (TOP RIGHT)
             pdf.setFont("Helvetica-Bold", 22)
             pdf.setFillColor(colors.black)
-            pdf.drawString(70, height - 70, f"Factuur {factuurnummer}")
+            pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
         
-            # SUBTITLE LEFT
+            # SUBTITLE (TOP RIGHT)
             pdf.setFont("Helvetica", 12)
-            pdf.drawString(70, height - 95, f"Periode(s): {', '.join(selected_months)}")
+            pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
         
-            # DATE LEFT
-            pdf.drawString(70, height - 115, f"Factuurdatum: {factuurdatum}")
+            # SUBHEADER (SMALLER FONT)
+            pdf.setFont("Helvetica", 10)
+            pdf.drawRightString(width - 40, height - 115, f"Factuurdatum: {factuurdatum}")
         
             # ---------------------------------------------------------
-            # OPDRACHTGEVER (CLIENT)
+            # OPDRACHTGEVER
             # ---------------------------------------------------------
             y = height - 170
             pdf.setFont("Helvetica-Bold", 12)
@@ -693,7 +694,7 @@ elif subpage == "Monthly Earnings":
             pdf.line(70, y, width - 40, y)
         
             # ---------------------------------------------------------
-            # OPDRACHTNEMER (YOU)
+            # OPDRACHTNEMER
             # ---------------------------------------------------------
             y -= 25
             pdf.setFont("Helvetica-Bold", 12)
@@ -711,14 +712,26 @@ elif subpage == "Monthly Earnings":
             y -= 14; pdf.drawString(70, y, f"IBAN: {eigen_iban}")
         
             # ---------------------------------------------------------
-            # SPACE BEFORE OVERZICHT OPDRACHTEN
+            # FULL LINE BEFORE OVERZICHT OPDRACHTEN
             # ---------------------------------------------------------
+            y -= 20
+            pdf.setLineWidth(1)
+            pdf.setStrokeColor(colors.black)
+            pdf.line(70, y, width - 40, y)
+        
+            y -= 30
+        
+            # ---------------------------------------------------------
+            # OVERZICHT OPDRACHTEN
+            # ---------------------------------------------------------
+            pdf.setFont("Helvetica-Bold", 16)
+            pdf.drawString(70, y, "Overzicht opdrachten")
             y -= 30
         
             # ---------------------------------------------------------
             # UURTARIEF PER OPDRACHT
             # ---------------------------------------------------------
-            pdf.setFont("Helvetica-Bold", 14)
+            pdf.setFont("Helvetica-Bold", 13)
             pdf.drawString(70, y, "Uurtarief per opdracht")
             y -= 22
         
@@ -730,8 +743,8 @@ elif subpage == "Monthly Earnings":
             # ---------------------------------------------------------
             # UREN & INKOMSTEN PER OPDRACHT (COMBINED)
             # ---------------------------------------------------------
-            y -= 20
-            pdf.setFont("Helvetica-Bold", 14)
+            y -= 25
+            pdf.setFont("Helvetica-Bold", 13)
             pdf.drawString(70, y, "Uren & inkomsten per opdracht")
             y -= 22
         
@@ -777,7 +790,11 @@ elif subpage == "Monthly Earnings":
             pdf.setFont("Helvetica-Bold", 18)
             pdf.drawString(70, height - 50, "Veldwerk")
         
-            y = height - 90
+            # LINE UNDER VELDWERK
+            pdf.setLineWidth(1)
+            pdf.line(70, height - 60, width - 40, height - 60)
+        
+            y = height - 100
             pdf.setFont("Helvetica", 10)
         
             for area in sorted(area_assignment["area"].unique()):
