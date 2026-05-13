@@ -635,15 +635,10 @@ elif subpage == "Monthly Earnings":
             factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
         
             # ---------------------------------------------------------
-            # CREATE PAYMENT QR (SEPA-LIKE TEXT)
+            # CREATE PLACEHOLDER IDEAL QR
             # ---------------------------------------------------------
-            qr_text = (
-                f"IBAN:{eigen_iban}\n"
-                f"Naam:{eigen_naam}\n"
-                f"Bedrag:{total:.2f}\n"
-                f"Omschrijving:Factuur {factuurnummer}"
-            )
-            qr_img = qrcode.make(qr_text)
+            ideal_url = f"https://example.com/betaal-hier?factuur={factuurnummer}"
+            qr_img = qrcode.make(ideal_url)
             qr_buffer = io.BytesIO()
             qr_img.save(qr_buffer, format="PNG")
             qr_buffer.seek(0)
@@ -657,59 +652,44 @@ elif subpage == "Monthly Earnings":
             width, height = A4
         
             # ---------------------------------------------------------
-            # DECORATION: ECO LEAFS IN CORNERS
+            # HEADER: QR + TITLES
             # ---------------------------------------------------------
-            def draw_leaf_decorations():
-                pdf.setFillColorRGB(0.0, 0.45, 0.0)
-                pdf.circle(25, height - 25, 12, fill=1)
-                pdf.circle(width - 25, 25, 12, fill=1)
-        
-            # ---------------------------------------------------------
-            # FOOTER
-            # ---------------------------------------------------------
-            def draw_footer(page_num: int):
-                pdf.setFont("Helvetica", 8)
-                pdf.setFillColor(colors.grey)
-                pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
-                pdf.drawRightString(width - 40, 30, f"Pagina {page_num}")
-        
-            # ---------------------------------------------------------
-            # PAGE 1 — HEADER + OVERZICHT OPDRACHTEN + QR
-            # ---------------------------------------------------------
-        
-            # GREEN SIDEBAR
-            pdf.setFillColorRGB(0.0, 0.45, 0.0)
-            pdf.rect(0, 0, 60, height, fill=1, stroke=0)
-        
-            # HEADER BAR
-            pdf.setFillColorRGB(0.9, 0.97, 0.9)
-            pdf.rect(60, height - 110, width - 60, 110, fill=1, stroke=0)
-        
-            # DECORATION
-            draw_leaf_decorations()
-        
-            # TITLE = FACTUURNUMMER
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawString(70, height - 55, f"Factuur {factuurnummer}")
-        
-            # SUBHEADER = PERIODEN
-            pdf.setFont("Helvetica", 12)
-            pdf.drawString(70, height - 80, f"Periode(s): {', '.join(selected_months)}")
-        
-            # SUBSUBHEADER = FACTUURDATUM
-            pdf.drawString(70, height - 100, f"Factuurdatum: {factuurdatum}")
-        
-            # QR CODE (LEFT TOP)
             qr_size = 90
-            pdf.drawImage(qr_reader, 70, height - 210, qr_size, qr_size, preserveAspectRatio=True, mask='auto')
+            pdf.drawImage(qr_reader, 70, height - 150, qr_size, qr_size, preserveAspectRatio=True, mask='auto')
             pdf.setFont("Helvetica", 8)
-            pdf.drawString(70, height - 220, "Scan om te betalen")
+            pdf.drawString(70, height - 160, "Scan om te betalen")
         
-            # BUSINESS INFO (LEFT)
-            y = height - 250
+            # TITLE
+            pdf.setFont("Helvetica-Bold", 22)
+            pdf.setFillColor(colors.black)
+            pdf.drawString(180, height - 70, f"Factuur {factuurnummer}")
+        
+            # SUBHEADER
+            pdf.setFont("Helvetica", 12)
+            pdf.drawString(180, height - 95, f"Periode(s): {', '.join(selected_months)}")
+        
+            # SUBSUBHEADER
+            pdf.drawString(180, height - 115, f"Factuurdatum: {factuurdatum}")
+        
+            # ---------------------------------------------------------
+            # CLIENT NAME + HALF LINE
+            # ---------------------------------------------------------
+            y = height - 180
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(70, y, klant_naam)
+        
+            y -= 8
+            pdf.setLineWidth(0.5)
+            pdf.setStrokeColor(colors.grey)
+            pdf.line(70, y, width - 40, y)
+        
+            # ---------------------------------------------------------
+            # YOUR BUSINESS INFO
+            # ---------------------------------------------------------
+            y -= 25
             pdf.setFont("Helvetica-Bold", 11)
             pdf.drawString(70, y, eigen_naam)
+        
             pdf.setFont("Helvetica", 10)
             y -= 14; pdf.drawString(70, y, eigen_adres)
             y -= 14; pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
@@ -719,107 +699,60 @@ elif subpage == "Monthly Earnings":
             y -= 14; pdf.drawString(70, y, f"BTW: {eigen_btw}")
             y -= 14; pdf.drawString(70, y, f"IBAN: {eigen_iban}")
         
-            # CLIENT INFO (RIGHT)
-            y2 = height - 250
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(width - 250, y2, klant_naam)
-            pdf.setFont("Helvetica", 10)
-            y2 -= 14; pdf.drawString(width - 250, y2, klant_adres)
-            y2 -= 14; pdf.drawString(width - 250, y2, f"{klant_postcode} {klant_stad}")
+            # ---------------------------------------------------------
+            # SPACE BEFORE OVERZICHT OPDRACHTEN
+            # ---------------------------------------------------------
+            y -= 30
         
-            # SEPARATOR LINE
-            pdf.setLineWidth(1)
-            pdf.setStrokeColor(colors.grey)
-            pdf.line(70, y - 10, width - 40, y - 10)
-        
-            y = y - 40
-        
+            # ---------------------------------------------------------
             # OVERZICHT OPDRACHTEN
+            # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 14)
+            pdf.setFillColor(colors.black)
             pdf.drawString(70, y, "Overzicht opdrachten")
             y -= 25
         
-            # UURTARIEF
+            # ---------------------------------------------------------
+            # COMBINED: UREN & INKOMSTEN PER OPDRACHT
+            # ---------------------------------------------------------
             pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, "Uurtarief per opdracht")
+            pdf.drawString(70, y, "Uren & inkomsten per opdracht")
             y -= 18
-            pdf.setFont("Helvetica", 10)
-            for _, row in wage_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: € {row['rate']:,.2f} / uur")
-                y -= 14
         
-            y -= 10
-        
-            # UREN
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, "Uren per opdracht")
-            y -= 18
             pdf.setFont("Helvetica", 10)
             for _, row in hours_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: {row['hours']:.2f} uur")
+                amount = earnings_assignment.loc[
+                    earnings_assignment["assignment"] == row["assignment"], "amount"
+                ].values[0]
+        
+                pdf.drawString(
+                    80, y,
+                    f"{row['assignment']}: {row['hours']:.2f} uur — € {amount:,.2f}"
+                )
                 y -= 14
         
-            y -= 10
-        
-            # INKOMSTEN
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(70, y, "Inkomsten per opdracht")
-            y -= 18
-            pdf.setFont("Helvetica", 10)
-            for _, row in earnings_assignment.iterrows():
-                pdf.drawString(80, y, f"{row['assignment']}: € {row['amount']:,.2f}")
-                y -= 14
-        
+            # ---------------------------------------------------------
+            # TOTALS (TOTAAL IN BLUE)
+            # ---------------------------------------------------------
             y -= 20
-        
-            # TOTAAL
             pdf.setFont("Helvetica-Bold", 12)
+            pdf.setFillColor(colors.black)
             pdf.drawString(70, y, f"Subtotaal: € {subtotal:,.2f}")
+        
             y -= 18
             pdf.drawString(70, y, f"BTW 21%: € {vat:,.2f}")
+        
             y -= 18
+            pdf.setFillColor(colors.blue)
             pdf.drawString(70, y, f"Totaal: € {total:,.2f}")
         
-            # FOOTER PAGE 1
-            draw_footer(1)
-        
-            pdf.showPage()
-        
             # ---------------------------------------------------------
-            # PAGE 2 — VELDWERK
+            # FOOTER
             # ---------------------------------------------------------
-            pdf.setFillColorRGB(0.0, 0.45, 0.0)
-            pdf.rect(0, 0, 60, height, fill=1, stroke=0)
-        
-            draw_leaf_decorations()
-        
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 18)
-            pdf.drawString(70, height - 50, "Veldwerk")
-        
-            y = height - 90
-            pdf.setFont("Helvetica", 10)
-        
-            for area in sorted(area_assignment["area"].unique()):
-                pdf.setFont("Helvetica-Bold", 11)
-                pdf.drawString(70, y, f"Gebied: {area}")
-                y -= 18
-        
-                pdf.setFont("Helvetica", 10)
-                df_area_block = area_assignment[area_assignment["area"] == area].sort_values("assignment")
-                for _, row in df_area_block.iterrows():
-                    pdf.drawString(80, y, f"- {row['assignment']}: {row['hours']:.2f} uur — € {row['amount']:,.2f}")
-                    y -= 14
-        
-                    if y < 70:
-                        break
-        
-                y -= 10
-                if y < 70:
-                    break
-        
-            # FOOTER PAGE 2
-            draw_footer(2)
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(colors.grey)
+            pdf.drawString(70, 30, f"{eigen_naam} • {eigen_email} • IBAN: {eigen_iban}")
+            pdf.drawRightString(width - 40, 30, "Pagina 1")
         
             pdf.showPage()
             pdf.save()
@@ -832,6 +765,3 @@ elif subpage == "Monthly Earnings":
                 file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
-        
-                
-        
