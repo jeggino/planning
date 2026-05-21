@@ -939,10 +939,7 @@ if menu == "Work Setup":
     subpage = st.sidebar.radio("Setup", ["Assignments", "Areas"])
 
 elif menu == "Work Activity":
-    subpage = st.sidebar.radio("Activity", ["Log Work Day", "Rounds Overview & Plot"])
-
-elif menu == "Planning":
-    subpage = "Planning"
+    subpage = st.sidebar.radio("Activity", ["Log Work Day", "Planning", "Rounds Overview & Plot"])
 
 else:
     subpage = "Monthly Earnings"
