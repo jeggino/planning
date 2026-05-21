@@ -1102,44 +1102,51 @@ elif subpage == "Log Work Day":
         st.info("You need assignments first.")
         st.stop()
 
-    work_date = st.date_input("Work date", value=date.today())
+    # NEW: Ask what kind of log this is
+    log_type = st.radio("What do you want to log?", ["Work", "Travel cost"])
 
-    assignment = st.selectbox(
-        "Assignment",
-        assignments,
-        format_func=lambda a: f"{a['name']} ({a['type']})"
-    )
+    work_date = st.date_input("Date", value=date.today())
 
     area_id = None
     hours = None
     travel_cost = None
+    assignment_id = None
 
-    if assignment["type"] == "Deskwork":
-        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
+    if log_type == "Work":
+        assignment = st.selectbox(
+            "Assignment",
+            assignments,
+            format_func=lambda a: f"{a['name']} ({a['type']})"
+        )
+        assignment_id = assignment["id"]
 
-    elif assignment["type"] == "Fieldwork":
-        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-        area_id = area["id"]
+        if assignment["type"] in ["Deskwork", "Extra"]:
+            hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
 
-    elif assignment["type"] == "Travel":
+        elif assignment["type"] in ["Fieldwork", "Travel"]:
+            area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+            area_id = area["id"]
+
+            if assignment["type"] == "Travel":
+                travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
+
+    else:  # log_type == "Travel cost"
         area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
         area_id = area["id"]
         travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
 
-    elif assignment["type"] == "Extra":
-        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-
-    if st.button("Save work day"):
+    if st.button("Save"):
         supabase.table("rounds").insert({
-            "assignment_id": assignment["id"],
+            "assignment_id": assignment_id,
             "area_id": area_id,
             "work_date": work_date.isoformat(),
             "hours_worked": hours,
             "travel_cost": travel_cost
         }).execute()
 
-        st.success("Work day saved.")
+        st.success("Saved.")
         refresh()
+
 
 
 # ---------------------------------------------------------
