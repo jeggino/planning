@@ -1491,60 +1491,276 @@ elif subpage == "Planning":
 
         st.dataframe(table_df, use_container_width=True)
 
-# =========================================================
-# PAGE — MONTHLY EARNINGS
-# =========================================================
+# ---------------------------------------------------------
+# PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
+# ---------------------------------------------------------
 elif subpage == "Monthly Earnings":
     st.header("Monthly Earnings")
 
     rounds = get_rounds()
-
     if not rounds:
-        st.info("No rounds logged yet.")
-        st.stop()
+        st.info("No rounds yet.")
+    else:
+        df = pd.DataFrame([
+            {
+                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
+                "assignment": r["assignments"]["name"] if r["assignments"] else None,
+                "type": r["assignments"]["type"] if r["assignments"] else ("Travel" if r["travel_cost"] else None),
+                "area": r["areas"]["name"] if r["areas"] else None,
+                "hours_worked": r["hours_worked"],
+                "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
+                "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
+                "travel_cost": r["travel_cost"]
+            }
+            for r in rounds
+        ])
 
-    df = pd.DataFrame(rounds)
+        # ---------------------------------------------------------
+        # COMPUTE HOURS + AMOUNT
+        # ---------------------------------------------------------
+        def compute_amount(row):
+            if row["type"] == "Deskwork":
+                return (row["hours_worked"] or 0) * (row["rate"] or 0)
+            elif row["type"] == "Fieldwork":
+                return (row["hours_per_round"] or 0) * (row["rate"] or 0)
+            else:
+                return row["travel_cost"] or 0
 
-    df["assignment"] = df["assignments"].apply(lambda x: x["name"] if x else None)
-    df["assignment_type"] = df["assignments"].apply(lambda x: x["type"] if x else None)
-    df["hourly_rate"] = df["assignments"].apply(lambda x: x["hourly_rate"] if x else None)
-    df["hours_per_round"] = df["assignments"].apply(lambda x: x["hours_per_round"] if x else None)
-    df["work_date"] = pd.to_datetime(df["work_date"])
+        df["amount"] = df.apply(compute_amount, axis=1)
+        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
 
-    def compute_earnings(row):
-        if row["assignment_type"] == "Deskwork" and row["hours_worked"]:
-            return row["hours_worked"] * (row["hourly_rate"] or 0)
-        if row["assignment_type"] == "Fieldwork":
-            return (row["hours_per_round"] or 0) * (row["hourly_rate"] or 0)
-        if row["travel_cost"]:
-            return -row["travel_cost"]
-        return 0
+        # ---------------------------------------------------------
+        # MONTH SELECTION
+        # ---------------------------------------------------------
+        st.subheader("Select month(s)")
+        months = sorted(df["month"].unique())
+        selected_months = st.multiselect("Months", months, default=[months[-1]])
 
-    df["earnings"] = df.apply(compute_earnings, axis=1)
+        if not selected_months:
+            st.info("Select at least one month.")
+            st.stop()
 
-    df["year_month"] = df["work_date"].dt.to_period("M").astype(str)
+        df_month = df[df["month"].isin(selected_months)]
 
-    monthly = df.groupby("year_month", as_index=False)["earnings"].sum()
-    monthly = monthly.sort_values("year_month")
+        # ---------------------------------------------------------
+        # TOTALS
+        # ---------------------------------------------------------
+        subtotal = df_month["amount"].sum()
+        vat = subtotal * 0.21
+        total = subtotal + vat
 
-    st.subheader("Monthly totals")
+        st.metric("Subtotal", f"€ {subtotal:,.2f}")
+        st.metric("VAT 21%", f"€ {vat:,.2f}")
+        st.metric("Total", f"€ {total:,.2f}")
 
-    monthly_display = monthly.rename(columns={"year_month": "Month", "earnings": "Net earnings (€)"})
-    st.dataframe(monthly_display, use_container_width=True)
+        st.markdown("---")
 
-    total = monthly["earnings"]
-    total_sum = float(total.sum())
-    vat = total_sum * 0.21
-    excl_vat = total_sum - vat
+        # ---------------------------------------------------------
+        # HOURS PER ASSIGNMENT
+        # ---------------------------------------------------------
+        st.subheader("Hours per assignment")
 
-    st.markdown("---")
-    st.subheader("Totals")
+        df_hours = df_month[df_month["type"] != "Travel"].copy()
+        df_hours["hours"] = df_hours.apply(
+            lambda r: r["hours_worked"] if r["type"] == "Deskwork" else r["hours_per_round"],
+            axis=1
+        )
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total (incl. VAT)", f"€ {total_sum:,.2f}")
-    with col2:
-        st.metric("VAT (21%)", f"€ {vat:,.2f}")
-    with col3:
-        st.metric("Total (excl. VAT)", f"€ {excl_vat:,.2f}")
+        hours_assignment = (
+            df_hours.groupby("assignment")["hours"]
+            .sum()
+            .reset_index()
+            .sort_values("hours", ascending=False)
+        )
 
+        st.dataframe(hours_assignment, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # TRAVEL COSTS TABLE
+        # ---------------------------------------------------------
+        st.subheader("Travel Costs")
+
+        df_travel = df_month[df_month["type"] == "Travel"]
+
+        if df_travel.empty:
+            st.info("No travel costs this month.")
+        else:
+            travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
+            st.dataframe(travel_table, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # EARNINGS PER ASSIGNMENT
+        # ---------------------------------------------------------
+        st.subheader("Total earnings per assignment")
+
+        earnings_assignment = (
+            df_month[df_month["type"] != "Travel"]
+            .groupby("assignment")["amount"]
+            .sum()
+            .reset_index()
+            .sort_values("amount", ascending=False)
+        )
+
+        st.dataframe(earnings_assignment, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # CLIENT INFO
+        # ---------------------------------------------------------
+        st.subheader("Client information (for invoice)")
+        klant_naam = st.text_input("Client name")
+        klant_adres = st.text_input("Client address")
+        klant_postcode = st.text_input("Client postcode")
+        klant_stad = st.text_input("Client city")
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # PDF EXPORT (UPDATED WITH TRAVEL COSTS)
+        # ---------------------------------------------------------
+        st.subheader("Export invoice as PDF")
+
+        if st.button("Generate PDF"):
+            import random
+            from reportlab.lib import colors
+            from reportlab.platypus import Table, TableStyle
+
+            bedrijf = st.secrets["bedrijf"]
+
+            eigen_naam = bedrijf["naam"]
+            eigen_adres = bedrijf["adres"]
+            eigen_postcode = bedrijf["postcode"]
+            eigen_stad = bedrijf["stad"]
+            eigen_mobiel = bedrijf["mobiel"]
+            eigen_email = bedrijf["email"]
+            eigen_kvk = bedrijf["kvk"]
+            eigen_btw = bedrijf["btw"]
+            eigen_iban = bedrijf["iban"]
+
+            if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
+                st.error("Please fill in all client fields before generating the invoice.")
+                st.stop()
+
+            vandaag = datetime.today()
+            factuurdatum = vandaag.strftime("%d-%m-%Y")
+            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
+
+            buffer = io.BytesIO()
+            pdf = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
+
+            # HEADER
+            pdf.setFillColor(colors.blue)
+            pdf.setFont("Helvetica-Bold", 22)
+            pdf.drawRightString(width - 40, height - 70, f"Invoice {factuurnummer}")
+
+            pdf.setFillColor(colors.black)
+            pdf.setFont("Helvetica", 12)
+            pdf.drawRightString(width - 40, height - 95, f"Period(s): {', '.join(selected_months)}")
+
+            pdf.setFont("Helvetica", 10)
+            pdf.drawRightString(width - 40, height - 115, f"Date: {factuurdatum}")
+
+            y = height - 180
+
+            # CLIENT
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(70, y, "Client")
+            y -= 18
+
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(70, y, klant_naam)
+            y -= 14
+            pdf.drawString(70, y, klant_adres)
+            y -= 14
+            pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
+
+            y -= 20
+            pdf.line(70, y, width / 2, y)
+
+            # CONTRACTOR
+            y -= 25
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(70, y, "Contractor")
+            y -= 18
+
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(70, y, eigen_naam)
+            y -= 14
+            pdf.drawString(70, y, eigen_adres)
+            y -= 14
+            pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
+            y -= 14
+            pdf.drawString(70, y, f"Phone: {eigen_mobiel}")
+            y -= 14
+            pdf.drawString(70, y, f"Email: {eigen_email}")
+            y -= 14
+            pdf.drawString(70, y, f"KvK: {eigen_kvk}")
+            y -= 14
+            pdf.drawString(70, y, f"VAT: {eigen_btw}")
+            y -= 14
+            pdf.drawString(70, y, f"IBAN: {eigen_iban}")
+
+            y -= 30
+            pdf.line(70, y, width - 40, y)
+            y -= 40
+
+            # TABLE
+            table_data = [["Description", "Hours", "Rate", "Amount"]]
+
+            # Deskwork + Fieldwork
+            for _, row in df_month[df_month["type"] != "Travel"].iterrows():
+                hours = row["hours_worked"] if row["type"] == "Deskwork" else row["hours_per_round"]
+                table_data.append([
+                    row["assignment"],
+                    f"{hours:.2f}",
+                    f"€ {row['rate']:,.2f}",
+                    f"€ {row['amount']:,.2f}"
+                ])
+
+            # Travel Costs (ONE LINE PER ENTRY)
+            for _, row in df_month[df_month["type"] == "Travel"].iterrows():
+                table_data.append([
+                    f"Travel — {row['area']}",
+                    "-",
+                    "-",
+                    f"€ {row['travel_cost']:,.2f}"
+                ])
+
+            table = Table(table_data, colWidths=[200, 80, 80, 100])
+
+            table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("BOX", (0, 0), (-1, -1), 1, colors.black),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+            ]))
+
+            table.wrapOn(pdf, width, height)
+            table.drawOn(pdf, 70, y - len(table_data) * 18)
+
+            y = y - len(table_data) * 18 - 40
+
+            # TOTALS
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawRightString(width - 40, y, f"Subtotal: € {subtotal:,.2f}")
+            y -= 20
+            pdf.drawRightString(width - 40, y, f"VAT 21%: € {vat:,.2f}")
+            y -= 20
+            pdf.drawRightString(width - 40, y, f"Total: € {total:,.2f}")
+
+            pdf.save()
+            buffer.seek(0)
+
+            st.download_button(
+                "Download PDF",
+                buffer,
+                file_name=f"invoice_{factuurnummer}.pdf",
+                mime="application/pdf"
+            )
