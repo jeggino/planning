@@ -1119,224 +1119,195 @@ elif subpage == "Log Work Day":
         st.success("Work day saved.")
         refresh()
 
-# =========================================================
-# PAGE — ROUNDS OVERVIEW & PLOT (HYBRID)
-# =========================================================
+# ---------------------------------------------------------
+# PAGE — ROUNDS OVERVIEW & PLOT (UPDATED WITH TRAVEL COSTS)
+# ---------------------------------------------------------
 elif subpage == "Rounds Overview & Plot":
-    st.header("Rounds Overview & Plot")
+    st.header("Work Activity Overview")
 
     rounds = get_rounds()
-    assignments = get_assignments()
-    areas = get_areas()
-
     if not rounds:
         st.info("No rounds logged yet.")
-        st.stop()
+    else:
+        df = pd.DataFrame([
+            {
+                "id": r["id"],
+                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
+                "assignment": r["assignments"]["name"] if r["assignments"] else None,
+                "type": r["assignments"]["type"] if r["assignments"] else ("Travel" if r["travel_cost"] else None),
+                "area": r["areas"]["name"] if r["areas"] else None,
+                "hours_worked": r["hours_worked"],
+                "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
+                "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
+                "travel_cost": r["travel_cost"]
+            }
+            for r in rounds
+        ])
 
-    df = pd.DataFrame(rounds)
+        df["date"] = pd.to_datetime(df["date"])
 
-    # Flatten nested assignment + area
-    df["assignment"] = df["assignments"].apply(lambda x: x["name"] if x else None)
-    df["assignment_type"] = df["assignments"].apply(lambda x: x["type"] if x else None)
-    df["area"] = df["areas"].apply(lambda x: x["name"] if x else None)
-    df["hourly_rate"] = df["assignments"].apply(lambda x: x["hourly_rate"] if x else None)
-    df["hours_per_round"] = df["assignments"].apply(lambda x: x["hours_per_round"] if x else None)
+        # -------------------------------
+        # FILTERS
+        # -------------------------------
+        st.subheader("Filters")
 
-    df["work_date"] = pd.to_datetime(df["work_date"])
+        col1, col2 = st.columns(2)
 
-    # Earnings and effective hours
-    def compute_earnings(row):
-        if row["assignment_type"] == "Deskwork" and row["hours_worked"]:
-            return row["hours_worked"] * (row["hourly_rate"] or 0)
-        if row["assignment_type"] == "Fieldwork":
-            return (row["hours_per_round"] or 0) * (row["hourly_rate"] or 0)
-        if row["travel_cost"]:
-            return -row["travel_cost"]
-        return 0
-
-    df["earnings"] = df.apply(compute_earnings, axis=1)
-
-    def compute_effective_hours(row):
-        if row["assignment_type"] == "Deskwork" and row["hours_worked"]:
-            return row["hours_worked"]
-        if row["assignment_type"] == "Fieldwork":
-            return row["hours_per_round"] or 0
-        return 0
-
-    df["effective_hours"] = df.apply(compute_effective_hours, axis=1)
-
-    # ---------------- FILTERS ----------------
-    st.subheader("Filters")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        assignment_options = sorted([x for x in df["assignment"].unique() if x is not None])
-        assignment_filter = st.multiselect(
-            "Filter by assignment",
-            assignment_options,
-            default=assignment_options
-        )
-
-    with col2:
-        area_options = sorted([x for x in df["area"].dropna().unique() if x is not None])
-        area_filter = st.multiselect(
-            "Filter by area",
-            area_options,
-            default=area_options
-        )
-
-    df_filtered = df[
-        df["assignment"].isin(assignment_filter) &
-        df["area"].isin(area_filter)
-    ]
-
-    if df_filtered.empty:
-        st.info("No rounds match the selected filters.")
-        st.stop()
-
-    st.markdown("---")
-
-    # ---------------- SUMMARY TABLE ----------------
-    st.subheader("Summary Table")
-
-    st.dataframe(
-        df_filtered[[
-            "work_date", "assignment", "assignment_type",
-            "area", "hours_worked", "travel_cost", "earnings"
-        ]].sort_values("work_date"),
-        use_container_width=True
-    )
-
-    st.markdown("---")
-
-    # ---------------- PLOTS (HYBRID) ----------------
-    st.subheader("Plots")
-
-    # Earnings over time
-    earnings_chart = (
-        alt.Chart(df_filtered)
-        .mark_bar()
-        .encode(
-            x="work_date:T",
-            y="earnings:Q",
-            color="assignment:N",
-            tooltip=["work_date", "assignment", "area", "earnings"]
-        )
-        .properties(title="Earnings over time", height=300)
-    )
-    st.altair_chart(earnings_chart, use_container_width=True)
-
-    # Hours per assignment
-    hours_by_assignment = (
-        df_filtered.groupby("assignment", as_index=False)["effective_hours"].sum()
-    )
-    hours_chart = (
-        alt.Chart(hours_by_assignment)
-        .mark_bar()
-        .encode(
-            x="assignment:N",
-            y="effective_hours:Q",
-            tooltip=["assignment", "effective_hours"]
-        )
-        .properties(title="Effective hours per assignment", height=300)
-    )
-    st.altair_chart(hours_chart, use_container_width=True)
-
-    # Travel cost per area
-    travel_df = df_filtered[df_filtered["travel_cost"].notna() & (df_filtered["travel_cost"] != 0)]
-    if not travel_df.empty:
-        travel_by_area = travel_df.groupby("area", as_index=False)["travel_cost"].sum()
-        travel_chart = (
-            alt.Chart(travel_by_area)
-            .mark_bar(color="orange")
-            .encode(
-                x="area:N",
-                y="travel_cost:Q",
-                tooltip=["area", "travel_cost"]
+        with col1:
+            assignment_filter = st.multiselect(
+                "Filter by assignment",
+                df["assignment"].dropna().unique()
             )
-            .properties(title="Travel cost per area", height=300)
-        )
-        st.altair_chart(travel_chart, use_container_width=True)
 
-    st.markdown("---")
+        with col2:
+            area_filter = st.multiselect(
+                "Filter by area",
+                df["area"].dropna().unique()
+            )
 
-    # ---------------- EDIT / DELETE ROUND ----------------
-    st.subheader("Edit or Delete a Round")
+        df_filtered = df.copy()
 
-    labels = [
-        f"{r['work_date'].strftime('%Y-%m-%d')} — {r['assignment']} — {r['area']}"
-        for _, r in df_filtered.iterrows()
-    ]
+        if assignment_filter:
+            df_filtered = df_filtered[df_filtered["assignment"].isin(assignment_filter)]
 
-    selected_label = st.selectbox("Select round", labels)
-    idx = labels.index(selected_label)
-    row = df_filtered.iloc[idx]
+        if area_filter:
+            df_filtered = df_filtered[df_filtered["area"].isin(area_filter)]
 
-    new_date = st.date_input("Work date", value=row["work_date"].date())
+        # -------------------------------
+        # DESKWORK PLOT
+        # -------------------------------
+        st.subheader("Deskwork Activity")
 
-    # Assignment selection
-    assignment_ids = [a["id"] for a in assignments]
-    try:
-        assignment_index = assignment_ids.index(row["assignment_id"])
-    except ValueError:
-        assignment_index = 0
+        df_desk = df_filtered[df_filtered["type"] == "Deskwork"]
 
-    new_assignment = st.selectbox(
-        "Assignment",
-        assignments,
-        index=assignment_index,
-        format_func=lambda a: f"{a['name']} ({a['type']})"
-    )
+        if df_desk.empty:
+            st.info("No deskwork logged.")
+        else:
+            chart_desk = (
+                alt.Chart(df_desk)
+                .mark_circle(size=150)
+                .encode(
+                    x=alt.X("date:T", title="Date"),
+                    y=alt.Y("assignment:N", title="Assignment"),
+                    color=alt.Color("assignment:N", scale=alt.Scale(scheme="category10")),
+                    tooltip=["date:T", "assignment:N", "hours_worked:Q"]
+                )
+                .interactive()
+                .properties(height=350)
+            )
+            st.altair_chart(chart_desk, use_container_width=True)
 
-    # Area selection
-    area_ids = [a["id"] for a in areas] if areas else []
-    if row["area_id"] and row["area_id"] in area_ids:
-        area_index = area_ids.index(row["area_id"])
-    else:
-        area_index = 0 if areas else 0
+        st.markdown("---")
 
-    new_area = None
-    if areas:
-        new_area = st.selectbox(
-            "Area",
-            areas,
-            index=area_index,
-            format_func=lambda a: a["name"]
-        )
+        # -------------------------------
+        # FIELDWORK PLOT
+        # -------------------------------
+        st.subheader("Fieldwork Activity")
 
-    # Hours or travel cost depending on type
-    if new_assignment["type"] == "Deskwork":
-        new_hours = st.number_input("Hours worked", value=row["hours_worked"] or 0.0)
-        new_travel = None
-    elif new_assignment["type"] == "Fieldwork":
-        new_hours = None
-        new_travel = None
-    else:
-        new_hours = None
-        new_travel = st.number_input("Travel cost (€)", value=row["travel_cost"] or 0.0)
+        df_field = df_filtered[df_filtered["type"] == "Fieldwork"]
 
-    colA, colB = st.columns(2)
+        if df_field.empty:
+            st.info("No fieldwork logged.")
+        else:
+            chart_field = (
+                alt.Chart(df_field)
+                .mark_circle(size=150)
+                .encode(
+                    x=alt.X("date:T", title="Date"),
+                    y=alt.Y("area:N", title="Area"),
+                    color=alt.Color("assignment:N", scale=alt.Scale(scheme="paired")),
+                    tooltip=["date:T", "assignment:N", "area:N"]
+                )
+                .interactive()
+                .properties(height=350)
+            )
+            st.altair_chart(chart_field, use_container_width=True)
 
-    with colA:
-        if st.button("Save changes"):
-            supabase.table("rounds").update({
-                "work_date": new_date.isoformat(),
-                "assignment_id": new_assignment["id"],
-                "area_id": new_area["id"] if new_area else None,
-                "hours_worked": new_hours,
-                "travel_cost": new_travel
-            }).eq("id", row["id"]).execute()
+        st.markdown("---")
 
-            st.success("Round updated.")
-            refresh()
+        # -------------------------------
+        # TRAVEL COSTS PLOT (NEW)
+        # -------------------------------
+        st.subheader("Travel Costs Activity")
 
-    with colB:
-        if st.button("Delete round"):
-            supabase.table("rounds").delete().eq("id", row["id"]).execute()
-            st.warning("Round deleted.")
-            refresh()
+        df_travel = df_filtered[df_filtered["travel_cost"].notna()]
 
+        if df_travel.empty:
+            st.info("No travel costs logged.")
+        else:
+            chart_travel = (
+                alt.Chart(df_travel)
+                .mark_square(size=200, color="orange")
+                .encode(
+                    x=alt.X("date:T", title="Date"),
+                    y=alt.Y("area:N", title="Area"),
+                    tooltip=["date:T", "area:N", "travel_cost:Q"]
+                )
+                .interactive()
+                .properties(height=350)
+            )
+            st.altair_chart(chart_travel, use_container_width=True)
+
+        st.markdown("---")
+
+        # -------------------------------
+        # EDIT / DELETE SECTION
+        # -------------------------------
+        st.subheader("Edit or Delete a Round")
+
+        labels = [
+            f"{row['date'].date()} — "
+            f"{row['assignment'] if row['assignment'] else 'Travel'} "
+            f"({row['type'] if row['type'] else 'Travel'})"
+            for _, row in df.iterrows()
+        ]
+
+        selected_label = st.selectbox("Select round", labels)
+        idx = labels.index(selected_label)
+        row = df.iloc[idx]
+
+        new_date = st.date_input("New date", value=row["date"], key="edit_date")
+
+        if row["type"] == "Deskwork":
+            new_hours = st.number_input(
+                "New hours worked",
+                value=float(row["hours_worked"] or 0.0),
+                key="edit_hours"
+            )
+            new_travel = None
+
+        elif row["type"] == "Fieldwork":
+            new_hours = None
+            new_travel = None
+
+        else:  # Travel
+            new_hours = None
+            new_travel = st.number_input(
+                "New travel cost (€)",
+                value=float(row["travel_cost"] or 0.0),
+                key="edit_travel"
+            )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Save changes"):
+                update_data = {"work_date": new_date.isoformat()}
+
+                if row["type"] == "Deskwork":
+                    update_data["hours_worked"] = new_hours
+
+                if row["type"] == "Travel":
+                    update_data["travel_cost"] = new_travel
+
+                supabase.table("rounds").update(update_data).eq("id", row["id"]).execute()
+                st.success("Round updated.")
+                refresh()
+
+        with col2:
+            if st.button("Delete round"):
+                supabase.table("rounds").delete().eq("id", row["id"]).execute()
+                st.warning("Round deleted.")
+                refresh()
 # =========================================================
 # PAGE — PLANNING (FIELDWORK ONLY)
 # =========================================================
