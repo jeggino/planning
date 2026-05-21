@@ -828,6 +828,9 @@ from supabase import create_client
 import pandas as pd
 from datetime import date, datetime
 import altair as alt
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import io
 
 # ---------------------------------------------------------
 # BASIC CONFIG
