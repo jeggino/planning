@@ -1074,6 +1074,175 @@ elif subpage == "Areas":
                 refresh()
 
 # ---------------------------------------------------------
+# PAGE — ROUNDS OVERVIEW & PLOT (RESTORED FULL VERSION)
+# ---------------------------------------------------------
+elif subpage == "Rounds Overview & Plot":
+    st.header("Rounds Overview & Plot")
+
+    rounds = get_rounds()
+    assignments = get_assignments()
+    areas = get_areas()
+
+    if not rounds:
+        st.info("No rounds logged yet.")
+        st.stop()
+
+    # Convert to DataFrame
+    df = pd.DataFrame(rounds)
+
+    # Extract nested assignment + area names
+    df["assignment"] = df["assignments"].apply(lambda x: x["name"] if x else None)
+    df["assignment_type"] = df["assignments"].apply(lambda x: x["type"] if x else None)
+    df["area"] = df["areas"].apply(lambda x: x["name"] if x else None)
+    df["hourly_rate"] = df["assignments"].apply(lambda x: x["hourly_rate"] if x else None)
+    df["hours_per_round"] = df["assignments"].apply(lambda x: x["hours_per_round"] if x else None)
+
+    df["work_date"] = pd.to_datetime(df["work_date"])
+
+    # Earnings calculation
+    df["earnings"] = df.apply(
+        lambda r: (
+            r["hours_worked"] * r["hourly_rate"]
+            if r["assignment_type"] == "Deskwork" and r["hours_worked"] else
+            r["hours_per_round"] * r["hourly_rate"]
+            if r["assignment_type"] == "Fieldwork" else
+            -r["travel_cost"]
+            if r["travel_cost"] else 0
+        ),
+        axis=1
+    )
+
+    # -----------------------------------------------------
+    # FILTERS
+    # -----------------------------------------------------
+    st.subheader("Filters")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        assignment_filter = st.multiselect(
+            "Filter by assignment",
+            sorted(df["assignment"].unique()),
+            default=sorted(df["assignment"].unique())
+        )
+
+    with col2:
+        area_filter = st.multiselect(
+            "Filter by area",
+            sorted(df["area"].dropna().unique()),
+            default=sorted(df["area"].dropna().unique())
+        )
+
+    df_filtered = df[
+        df["assignment"].isin(assignment_filter) &
+        df["area"].isin(area_filter)
+    ]
+
+    st.markdown("---")
+
+    # -----------------------------------------------------
+    # SUMMARY TABLE
+    # -----------------------------------------------------
+    st.subheader("Summary Table")
+
+    st.dataframe(
+        df_filtered[[
+            "work_date", "assignment", "assignment_type",
+            "area", "hours_worked", "travel_cost", "earnings"
+        ]].sort_values("work_date"),
+        use_container_width=True
+    )
+
+    st.markdown("---")
+
+    # -----------------------------------------------------
+    # PLOTS
+    # -----------------------------------------------------
+    st.subheader("Plots")
+
+    # Earnings over time
+    earnings_chart = (
+        alt.Chart(df_filtered)
+        .mark_bar()
+        .encode(
+            x="work_date:T",
+            y="earnings:Q",
+            color="assignment:N",
+            tooltip=["work_date", "assignment", "area", "earnings"]
+        )
+        .properties(height=300)
+    )
+
+    st.altair_chart(earnings_chart, use_container_width=True)
+
+    # -----------------------------------------------------
+    # EDIT / DELETE ROUND
+    # -----------------------------------------------------
+    st.markdown("---")
+    st.subheader("Edit or Delete a Round")
+
+    labels = [
+        f"{r['work_date'].strftime('%Y-%m-%d')} — {r['assignment']} — {r['area']}"
+        for _, r in df_filtered.iterrows()
+    ]
+
+    selected_label = st.selectbox("Select round", labels)
+    idx = labels.index(selected_label)
+    row = df_filtered.iloc[idx]
+
+    st.write("### Edit selected round")
+
+    new_date = st.date_input("Work date", value=row["work_date"].date())
+
+    # Assignment selection
+    new_assignment = st.selectbox(
+        "Assignment",
+        assignments,
+        index=[a["id"] for a in assignments].index(row["assignment_id"]),
+        format_func=lambda a: f"{a['name']} ({a['type']})"
+    )
+
+    # Area selection
+    new_area = st.selectbox(
+        "Area",
+        areas,
+        index=[a["id"] for a in areas].index(row["area_id"]) if row["area_id"] else 0,
+        format_func=lambda a: a["name"]
+    )
+
+    # Hours or travel cost depending on type
+    if new_assignment["type"] == "Deskwork":
+        new_hours = st.number_input("Hours worked", value=row["hours_worked"] or 0.0)
+        new_travel = None
+    elif new_assignment["type"] == "Fieldwork":
+        new_hours = None
+        new_travel = None
+    else:
+        new_hours = None
+        new_travel = st.number_input("Travel cost (€)", value=row["travel_cost"] or 0.0)
+
+    colA, colB = st.columns(2)
+
+    with colA:
+        if st.button("Save changes"):
+            supabase.table("rounds").update({
+                "work_date": new_date.isoformat(),
+                "assignment_id": new_assignment["id"],
+                "area_id": new_area["id"],
+                "hours_worked": new_hours,
+                "travel_cost": new_travel
+            }).eq("id", row["id"]).execute()
+
+            st.success("Round updated.")
+            refresh()
+
+    with colB:
+        if st.button("Delete round"):
+            supabase.table("rounds").delete().eq("id", row["id"]).execute()
+            st.warning("Round deleted.")
+            refresh()
+
+# ---------------------------------------------------------
 # The rest of your pages:
 # - Log Work Day
 # - Rounds Overview & Plot
