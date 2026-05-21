@@ -928,7 +928,6 @@ menu = st.sidebar.selectbox(
     [
         "Work Setup",
         "Work Activity",
-        "Planning",
         "Monthly Earnings"
     ]
 )
