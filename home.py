@@ -991,25 +991,25 @@ if subpage == "Assignments":
         hourly_rate = None
 
 
-    if assignment["type"] == "Deskwork":
-        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-        travel_cost = None
+    # if assignment["type"] == "Deskwork":
+    #     hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
+    #     travel_cost = None
     
-    elif assignment["type"] == "Fieldwork":
-        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-        area_id = area["id"]
-        hours = None
-        travel_cost = None
+    # elif assignment["type"] == "Fieldwork":
+    #     area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+    #     area_id = area["id"]
+    #     hours = None
+    #     travel_cost = None
     
-    elif assignment["type"] == "Travel":
-        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-        area_id = area["id"]
-        travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
-        hours = None
+    # elif assignment["type"] == "Travel":
+    #     area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+    #     area_id = area["id"]
+    #     travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
+    #     hours = None
     
-    elif assignment["type"] == "Extra":
-        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-        travel_cost = None
+    # elif assignment["type"] == "Extra":
+    #     hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
+    #     travel_cost = None
 
 
     if st.button("Save assignment"):
@@ -1118,13 +1118,24 @@ elif subpage == "Log Work Day":
 
     if assignment["type"] == "Deskwork":
         hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
+        travel_cost = None
+    
+    elif assignment["type"] == "Fieldwork":
+        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+        area_id = area["id"]
+        hours = None
+        travel_cost = None
+    
+    elif assignment["type"] == "Travel":
+        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+        area_id = area["id"]
+        travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
+        hours = None
+    
+    elif assignment["type"] == "Extra":
+        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
+        travel_cost = None
 
-    elif assignment["type"] in ["Fieldwork", "Travel"]:
-        if areas:
-            area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-            area_id = area["id"]
-        if assignment["type"] == "Travel":
-            travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
 
     if st.button("Save work day"):
         supabase.table("rounds").insert({
