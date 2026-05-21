@@ -1013,15 +1013,19 @@ if subpage == "Assignments":
             "hours_per_round": hours_per_round,
             "min_days_between_rounds": min_days,
         }
-
-        if selected:
-            supabase.table("assignments").update(data).eq("id", selected["id"]).execute()
-            st.success("Assignment updated.")
-        else:
-            supabase.table("assignments").insert(data).execute()
-            st.success("Assignment created.")
-
+    
+        try:
+            if selected:
+                supabase.table("assignments").update(data).eq("id", selected["id"]).execute()
+                st.success("Assignment updated.")
+            else:
+                supabase.table("assignments").insert(data).execute()
+                st.success("Assignment created.")
+        except Exception as e:
+            st.error(str(e))
+            # or st.write(e)
         refresh()
+
 
     st.subheader("All assignments")
     if assignments:
