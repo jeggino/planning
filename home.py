@@ -944,8 +944,6 @@ elif menu == "Work Activity":
 else:
     subpage = "Monthly Earnings"
 
-st.title("Work Planner")
-
 # =========================================================
 # PAGE — ASSIGNMENTS
 # =========================================================
