@@ -828,9 +828,11 @@ from supabase import create_client
 import pandas as pd
 from datetime import date, datetime
 import altair as alt
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-import io
+
+# ---------------------------------------------------------
+# BASIC CONFIG
+# ---------------------------------------------------------
+st.set_page_config(page_title="Work Planner", layout="wide")
 
 # ---------------------------------------------------------
 # PASSWORD PROTECTION
@@ -876,7 +878,7 @@ body {
 st.markdown(dark_css, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# Supabase client
+# SUPABASE CLIENT
 # ---------------------------------------------------------
 @st.cache_resource
 def get_supabase():
@@ -888,7 +890,7 @@ def get_supabase():
 supabase = get_supabase()
 
 # ---------------------------------------------------------
-# Cached fetch functions
+# CACHED FETCH FUNCTIONS
 # ---------------------------------------------------------
 @st.cache_data(ttl=3)
 def get_assignments():
@@ -914,9 +916,8 @@ def refresh():
     st.cache_data.clear()
 
 # ---------------------------------------------------------
-# Sidebar Navigation (UPDATED WITH PLANNING AS TOP-LEVEL)
+# SIDEBAR NAVIGATION
 # ---------------------------------------------------------
-st.set_page_config(page_title="Work Planner", layout="wide")
 st.sidebar.title("Navigation")
 
 menu = st.sidebar.selectbox(
@@ -924,7 +925,7 @@ menu = st.sidebar.selectbox(
     [
         "Work Setup",
         "Work Activity",
-        "Planning",        # NEW TOP-LEVEL SECTION
+        "Planning",
         "Monthly Earnings"
     ]
 )
@@ -945,10 +946,9 @@ else:
 
 st.title("Work Planner")
 
-# ---------------------------------------------------------
+# =========================================================
 # PAGE — ASSIGNMENTS
-# (reuse your existing implementation here; unchanged)
-# ---------------------------------------------------------
+# =========================================================
 if subpage == "Assignments":
     st.header("Assignment Setup")
 
@@ -966,32 +966,32 @@ if subpage == "Assignments":
 
     assignment_type = st.radio(
         "Type of assignment",
-        ["Deskwork", "Fieldwork"],
-        index=0 if not selected else (0 if selected["type"] == "Deskwork" else 1)
+        ["Deskwork", "Fieldwork", "Travel"],
+        index=(
+            0 if not selected else
+            (0 if selected["type"] == "Deskwork" else 1 if selected["type"] == "Fieldwork" else 2)
+        )
     )
 
     name = st.text_input("Assignment name", value=selected["name"] if selected else "")
 
-    if assignment_type == "Deskwork":
-        hourly_rate = st.number_input(
-            "Hourly rate (€)",
-            value=float(selected["hourly_rate"]) if selected else 0.0
-        )
-        hours_per_round = None
-        min_days = None
-    else:
+    hourly_rate = st.number_input(
+        "Hourly rate (€)",
+        value=float(selected["hourly_rate"]) if selected and selected["hourly_rate"] is not None else 0.0
+    )
+
+    if assignment_type == "Fieldwork":
         hours_per_round = st.number_input(
             "Hours per round",
-            value=float(selected["hours_per_round"]) if selected else 0.0
+            value=float(selected["hours_per_round"]) if selected and selected["hours_per_round"] is not None else 0.0
         )
         min_days = st.number_input(
             "Minimum days between rounds",
-            value=int(selected["min_days_between_rounds"]) if selected else 0
+            value=int(selected["min_days_between_rounds"]) if selected and selected["min_days_between_rounds"] is not None else 0
         )
-        hourly_rate = st.number_input(
-            "Hourly rate (€)",
-            value=float(selected["hourly_rate"]) if selected else 0.0
-        )
+    else:
+        hours_per_round = None
+        min_days = None
 
     if st.button("Save assignment"):
         data = {
@@ -1013,7 +1013,7 @@ if subpage == "Assignments":
 
     st.subheader("All assignments")
     if assignments:
-        df_a = pd.DataFrame(assignments).drop(columns=["id", "created_at"], errors="ignore")
+        df_a = pd.DataFrame(assignments).drop(columns=["created_at"], errors="ignore")
         st.dataframe(df_a, use_container_width=True)
 
     if assignments:
@@ -1025,10 +1025,9 @@ if subpage == "Assignments":
                 st.warning("Assignment deleted.")
                 refresh()
 
-# ---------------------------------------------------------
+# =========================================================
 # PAGE — AREAS
-# (reuse your existing implementation here; unchanged)
-# ---------------------------------------------------------
+# =========================================================
 elif subpage == "Areas":
     st.header("Area Setup")
 
@@ -1061,7 +1060,7 @@ elif subpage == "Areas":
 
     st.subheader("All areas")
     if areas:
-        df_ar = pd.DataFrame(areas).drop(columns=["id", "created_at"], errors="ignore")
+        df_ar = pd.DataFrame(areas).drop(columns=["created_at"], errors="ignore")
         st.dataframe(df_ar, use_container_width=True)
 
     if areas:
@@ -1073,9 +1072,56 @@ elif subpage == "Areas":
                 st.warning("Area deleted.")
                 refresh()
 
-# ---------------------------------------------------------
-# PAGE — ROUNDS OVERVIEW & PLOT (RESTORED FULL VERSION)
-# ---------------------------------------------------------
+# =========================================================
+# PAGE — LOG WORK DAY
+# =========================================================
+elif subpage == "Log Work Day":
+    st.header("Log Work Day")
+
+    assignments = get_assignments()
+    areas = get_areas()
+
+    if not assignments:
+        st.info("You need assignments first.")
+        st.stop()
+
+    work_date = st.date_input("Work date", value=date.today())
+
+    assignment = st.selectbox(
+        "Assignment",
+        assignments,
+        format_func=lambda a: f"{a['name']} ({a['type']})"
+    )
+
+    area_id = None
+    hours = None
+    travel_cost = None
+
+    if assignment["type"] == "Deskwork":
+        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
+
+    elif assignment["type"] in ["Fieldwork", "Travel"]:
+        if areas:
+            area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+            area_id = area["id"]
+        if assignment["type"] == "Travel":
+            travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
+
+    if st.button("Save work day"):
+        supabase.table("rounds").insert({
+            "assignment_id": assignment["id"],
+            "area_id": area_id,
+            "work_date": work_date.isoformat(),
+            "hours_worked": hours,
+            "travel_cost": travel_cost
+        }).execute()
+
+        st.success("Work day saved.")
+        refresh()
+
+# =========================================================
+# PAGE — ROUNDS OVERVIEW & PLOT (HYBRID)
+# =========================================================
 elif subpage == "Rounds Overview & Plot":
     st.header("Rounds Overview & Plot")
 
@@ -1087,10 +1133,9 @@ elif subpage == "Rounds Overview & Plot":
         st.info("No rounds logged yet.")
         st.stop()
 
-    # Convert to DataFrame
     df = pd.DataFrame(rounds)
 
-    # Extract nested assignment + area names
+    # Flatten nested assignment + area
     df["assignment"] = df["assignments"].apply(lambda x: x["name"] if x else None)
     df["assignment_type"] = df["assignments"].apply(lambda x: x["type"] if x else None)
     df["area"] = df["areas"].apply(lambda x: x["name"] if x else None)
@@ -1099,38 +1144,46 @@ elif subpage == "Rounds Overview & Plot":
 
     df["work_date"] = pd.to_datetime(df["work_date"])
 
-    # Earnings calculation
-    df["earnings"] = df.apply(
-        lambda r: (
-            r["hours_worked"] * r["hourly_rate"]
-            if r["assignment_type"] == "Deskwork" and r["hours_worked"] else
-            r["hours_per_round"] * r["hourly_rate"]
-            if r["assignment_type"] == "Fieldwork" else
-            -r["travel_cost"]
-            if r["travel_cost"] else 0
-        ),
-        axis=1
-    )
+    # Earnings and effective hours
+    def compute_earnings(row):
+        if row["assignment_type"] == "Deskwork" and row["hours_worked"]:
+            return row["hours_worked"] * (row["hourly_rate"] or 0)
+        if row["assignment_type"] == "Fieldwork":
+            return (row["hours_per_round"] or 0) * (row["hourly_rate"] or 0)
+        if row["travel_cost"]:
+            return -row["travel_cost"]
+        return 0
 
-    # -----------------------------------------------------
-    # FILTERS
-    # -----------------------------------------------------
+    df["earnings"] = df.apply(compute_earnings, axis=1)
+
+    def compute_effective_hours(row):
+        if row["assignment_type"] == "Deskwork" and row["hours_worked"]:
+            return row["hours_worked"]
+        if row["assignment_type"] == "Fieldwork":
+            return row["hours_per_round"] or 0
+        return 0
+
+    df["effective_hours"] = df.apply(compute_effective_hours, axis=1)
+
+    # ---------------- FILTERS ----------------
     st.subheader("Filters")
 
     col1, col2 = st.columns(2)
 
     with col1:
+        assignment_options = sorted([x for x in df["assignment"].unique() if x is not None])
         assignment_filter = st.multiselect(
             "Filter by assignment",
-            sorted(df["assignment"].unique()),
-            default=sorted(df["assignment"].unique())
+            assignment_options,
+            default=assignment_options
         )
 
     with col2:
+        area_options = sorted([x for x in df["area"].dropna().unique() if x is not None])
         area_filter = st.multiselect(
             "Filter by area",
-            sorted(df["area"].dropna().unique()),
-            default=sorted(df["area"].dropna().unique())
+            area_options,
+            default=area_options
         )
 
     df_filtered = df[
@@ -1138,11 +1191,13 @@ elif subpage == "Rounds Overview & Plot":
         df["area"].isin(area_filter)
     ]
 
+    if df_filtered.empty:
+        st.info("No rounds match the selected filters.")
+        st.stop()
+
     st.markdown("---")
 
-    # -----------------------------------------------------
-    # SUMMARY TABLE
-    # -----------------------------------------------------
+    # ---------------- SUMMARY TABLE ----------------
     st.subheader("Summary Table")
 
     st.dataframe(
@@ -1155,9 +1210,7 @@ elif subpage == "Rounds Overview & Plot":
 
     st.markdown("---")
 
-    # -----------------------------------------------------
-    # PLOTS
-    # -----------------------------------------------------
+    # ---------------- PLOTS (HYBRID) ----------------
     st.subheader("Plots")
 
     # Earnings over time
@@ -1170,15 +1223,45 @@ elif subpage == "Rounds Overview & Plot":
             color="assignment:N",
             tooltip=["work_date", "assignment", "area", "earnings"]
         )
-        .properties(height=300)
+        .properties(title="Earnings over time", height=300)
     )
-
     st.altair_chart(earnings_chart, use_container_width=True)
 
-    # -----------------------------------------------------
-    # EDIT / DELETE ROUND
-    # -----------------------------------------------------
+    # Hours per assignment
+    hours_by_assignment = (
+        df_filtered.groupby("assignment", as_index=False)["effective_hours"].sum()
+    )
+    hours_chart = (
+        alt.Chart(hours_by_assignment)
+        .mark_bar()
+        .encode(
+            x="assignment:N",
+            y="effective_hours:Q",
+            tooltip=["assignment", "effective_hours"]
+        )
+        .properties(title="Effective hours per assignment", height=300)
+    )
+    st.altair_chart(hours_chart, use_container_width=True)
+
+    # Travel cost per area
+    travel_df = df_filtered[df_filtered["travel_cost"].notna() & (df_filtered["travel_cost"] != 0)]
+    if not travel_df.empty:
+        travel_by_area = travel_df.groupby("area", as_index=False)["travel_cost"].sum()
+        travel_chart = (
+            alt.Chart(travel_by_area)
+            .mark_bar(color="orange")
+            .encode(
+                x="area:N",
+                y="travel_cost:Q",
+                tooltip=["area", "travel_cost"]
+            )
+            .properties(title="Travel cost per area", height=300)
+        )
+        st.altair_chart(travel_chart, use_container_width=True)
+
     st.markdown("---")
+
+    # ---------------- EDIT / DELETE ROUND ----------------
     st.subheader("Edit or Delete a Round")
 
     labels = [
@@ -1190,25 +1273,37 @@ elif subpage == "Rounds Overview & Plot":
     idx = labels.index(selected_label)
     row = df_filtered.iloc[idx]
 
-    st.write("### Edit selected round")
-
     new_date = st.date_input("Work date", value=row["work_date"].date())
 
     # Assignment selection
+    assignment_ids = [a["id"] for a in assignments]
+    try:
+        assignment_index = assignment_ids.index(row["assignment_id"])
+    except ValueError:
+        assignment_index = 0
+
     new_assignment = st.selectbox(
         "Assignment",
         assignments,
-        index=[a["id"] for a in assignments].index(row["assignment_id"]),
+        index=assignment_index,
         format_func=lambda a: f"{a['name']} ({a['type']})"
     )
 
     # Area selection
-    new_area = st.selectbox(
-        "Area",
-        areas,
-        index=[a["id"] for a in areas].index(row["area_id"]) if row["area_id"] else 0,
-        format_func=lambda a: a["name"]
-    )
+    area_ids = [a["id"] for a in areas] if areas else []
+    if row["area_id"] and row["area_id"] in area_ids:
+        area_index = area_ids.index(row["area_id"])
+    else:
+        area_index = 0 if areas else 0
+
+    new_area = None
+    if areas:
+        new_area = st.selectbox(
+            "Area",
+            areas,
+            index=area_index,
+            format_func=lambda a: a["name"]
+        )
 
     # Hours or travel cost depending on type
     if new_assignment["type"] == "Deskwork":
@@ -1228,7 +1323,7 @@ elif subpage == "Rounds Overview & Plot":
             supabase.table("rounds").update({
                 "work_date": new_date.isoformat(),
                 "assignment_id": new_assignment["id"],
-                "area_id": new_area["id"],
+                "area_id": new_area["id"] if new_area else None,
                 "hours_worked": new_hours,
                 "travel_cost": new_travel
             }).eq("id", row["id"]).execute()
@@ -1242,17 +1337,9 @@ elif subpage == "Rounds Overview & Plot":
             st.warning("Round deleted.")
             refresh()
 
-# ---------------------------------------------------------
-# The rest of your pages:
-# - Log Work Day
-# - Rounds Overview & Plot
-# - Planning (NEW, will be added in Part 2)
-# - Monthly Earnings
-# will follow after this block.
-# ---------------------------------------------------------
-# ---------------------------------------------------------
-# PAGE — PLANNING (FIELDWORK ONLY)
-# ---------------------------------------------------------
+# =========================================================
+# PAGE — PLANNING (FIELDWORK ONLY, OPTION C)
+# =========================================================
 elif subpage == "Planning":
     st.header("Planning — Fieldwork Rounds")
 
@@ -1263,7 +1350,6 @@ elif subpage == "Planning":
         st.info("You need at least one assignment and one area to plan rounds.")
         st.stop()
 
-    # Only Fieldwork assignments can be planned
     fieldwork_assignments = [a for a in assignments if a["type"] == "Fieldwork"]
 
     if not fieldwork_assignments:
@@ -1302,9 +1388,6 @@ elif subpage == "Planning":
 
     st.markdown("---")
 
-    # -----------------------------------------------------
-    # LIST OF PLANNED ROUNDS (SOONEST FIRST, WITH DAYS LEFT)
-    # -----------------------------------------------------
     st.subheader("Upcoming planned rounds")
 
     planned = get_planned_rounds()
@@ -1312,7 +1395,6 @@ elif subpage == "Planning":
     if not planned:
         st.info("No planned rounds yet.")
     else:
-        # Build DataFrame
         rows = []
         today = date.today()
 
@@ -1338,12 +1420,9 @@ elif subpage == "Planning":
                 "relative": rel
             })
 
-        df_planned = pd.DataFrame(rows)
+        df_planned = pd.DataFrame(rows).sort_values("planned_date")
 
-        # Sort by soonest first
-        df_planned = df_planned.sort_values("planned_date")
-
-        # Pretty list view
+        # List view
         for _, row in df_planned.iterrows():
             st.markdown(
                 f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
@@ -1352,9 +1431,6 @@ elif subpage == "Planning":
 
         st.markdown("---")
 
-        # -------------------------------------------------
-        # EDIT / DELETE / CONFIRM A PLANNED ROUND
-        # -------------------------------------------------
         st.subheader("Edit, delete or confirm a planned round")
 
         labels = [
@@ -1366,11 +1442,8 @@ elif subpage == "Planning":
         idx = labels.index(selected_label)
         row = df_planned.iloc[idx]
 
-        # Current values
         current_assignment = next(a for a in fieldwork_assignments if a["id"] == row["assignment_id"])
         current_area = next(a for a in areas if a["id"] == row["area_id"])
-
-        st.write("### Edit selected planning")
 
         col1, col2, col3 = st.columns(3)
 
@@ -1419,7 +1492,6 @@ elif subpage == "Planning":
 
         with col_c:
             if st.button("Confirm done", key=f"btn_confirm_planning_{row['id']}"):
-                # Move to rounds table as a Fieldwork round
                 supabase.table("rounds").insert({
                     "assignment_id": row["assignment_id"],
                     "area_id": row["area_id"],
@@ -1428,7 +1500,6 @@ elif subpage == "Planning":
                     "travel_cost": None
                 }).execute()
 
-                # Delete from planned_rounds
                 supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
 
                 st.success("Planned round confirmed and moved to rounds.")
@@ -1436,9 +1507,6 @@ elif subpage == "Planning":
 
         st.markdown("---")
 
-        # -------------------------------------------------
-        # TABLE VIEW OF PLANNED ROUNDS
-        # -------------------------------------------------
         st.subheader("Planned rounds table")
 
         table_df = df_planned[["planned_date", "assignment", "area", "relative"]].rename(
@@ -1452,69 +1520,58 @@ elif subpage == "Planning":
 
         st.dataframe(table_df, use_container_width=True)
 
-# ---------------------------------------------------------
-# PAGE — LOG WORK DAY (unchanged from your previous version)
-# ---------------------------------------------------------
-elif subpage == "Log Work Day":
-    st.header("Log Work Day")
+# =========================================================
+# PAGE — MONTHLY EARNINGS (SIMPLE, ROBUST)
+# =========================================================
+elif subpage == "Monthly Earnings":
+    st.header("Monthly Earnings")
 
-    assignments = get_assignments()
-    areas = get_areas()
+    rounds = get_rounds()
 
-    if not assignments:
-        st.info("You need assignments first.")
+    if not rounds:
+        st.info("No rounds logged yet.")
         st.stop()
 
-    work_date = st.date_input("Work date", value=date.today())
+    df = pd.DataFrame(rounds)
 
-    assignment = st.selectbox(
-        "Assignment",
-        assignments,
-        format_func=lambda a: f"{a['name']} ({a['type']})"
-    )
+    df["assignment"] = df["assignments"].apply(lambda x: x["name"] if x else None)
+    df["assignment_type"] = df["assignments"].apply(lambda x: x["type"] if x else None)
+    df["hourly_rate"] = df["assignments"].apply(lambda x: x["hourly_rate"] if x else None)
+    df["hours_per_round"] = df["assignments"].apply(lambda x: x["hours_per_round"] if x else None)
+    df["work_date"] = pd.to_datetime(df["work_date"])
 
-    if assignment["type"] == "Deskwork":
-        hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-        area_id = None
-        travel_cost = None
+    def compute_earnings(row):
+        if row["assignment_type"] == "Deskwork" and row["hours_worked"]:
+            return row["hours_worked"] * (row["hourly_rate"] or 0)
+        if row["assignment_type"] == "Fieldwork":
+            return (row["hours_per_round"] or 0) * (row["hourly_rate"] or 0)
+        if row["travel_cost"]:
+            return -row["travel_cost"]
+        return 0
 
-    elif assignment["type"] == "Fieldwork":
-        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-        area_id = area["id"]
-        hours = None
-        travel_cost = None
+    df["earnings"] = df.apply(compute_earnings, axis=1)
 
-    else:
-        # Travel cost entry
-        area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-        area_id = area["id"]
-        hours = None
-        travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
+    df["year_month"] = df["work_date"].dt.to_period("M").astype(str)
 
-    if st.button("Save work day"):
-        supabase.table("rounds").insert({
-            "assignment_id": assignment["id"],
-            "area_id": area_id,
-            "work_date": work_date.isoformat(),
-            "hours_worked": hours,
-            "travel_cost": travel_cost
-        }).execute()
+    monthly = df.groupby("year_month", as_index=False)["earnings"].sum()
+    monthly = monthly.sort_values("year_month")
 
-        st.success("Work day saved.")
-        refresh()
+    st.subheader("Monthly totals")
 
-# ---------------------------------------------------------
-# PAGE — ROUNDS OVERVIEW & PLOT (unchanged from your version)
-# ---------------------------------------------------------
-elif subpage == "Rounds Overview & Plot":
-    # Your full existing implementation goes here
-    # (Deskwork plot, Fieldwork plot, Travel plot, filters, edit/delete)
-    pass
+    st.dataframe(monthly.rename(columns={"year_month": "Month", "earnings": "Net earnings (€)"}), use_container_width=True)
 
-# ---------------------------------------------------------
-# PAGE — MONTHLY EARNINGS (unchanged from your version)
-# ---------------------------------------------------------
-elif subpage == "Monthly Earnings":
-    # Your full existing implementation goes here
-    # (Subtotal, VAT, totals, hours per assignment, travel table, PDF export)
-    pass
+    total = monthly["Net earnings (€)"] if "Net earnings (€)" in monthly.columns else monthly["earnings"]
+    total_sum = float(total.sum())
+    vat = total_sum * 0.21
+    excl_vat = total_sum - vat
+
+    st.markdown("---")
+    st.subheader("Totals")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total (incl. VAT)", f"€ {total_sum:,.2f}")
+    with col2:
+        st.metric("VAT (21%)", f"€ {vat:,.2f}")
+    with col3:
+        st.metric("Total (excl. VAT)", f"€ {excl_vat:,.2f}")
