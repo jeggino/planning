@@ -1089,7 +1089,6 @@ elif subpage == "Areas":
 # PAGE — LOG WORK DAY
 # =========================================================
 elif subpage == "Log Work Day":
-    st.header("Log Work Day")
     st.image("https://copilot.microsoft.com/th/id/BCO.916d1e50-5bc3-44e6-8cb6-adcd2419be6d.png")
 
     assignments = get_assignments()
@@ -1150,7 +1149,7 @@ elif subpage == "Log Work Day":
 # PAGE — ROUNDS OVERVIEW & PLOT (UPDATED WITH TRAVEL COSTS)
 # ---------------------------------------------------------
 elif subpage == "Rounds Overview & Plot":
-    st.header("Work Activity Overview")
+    st.image("https://copilot.microsoft.com/th/id/BCO.8913ea1b-eab7-4cbc-bb1b-75398b12618d.png")
 
     rounds = get_rounds()
     if not rounds:
@@ -1339,7 +1338,7 @@ elif subpage == "Rounds Overview & Plot":
 # PAGE — PLANNING (FIELDWORK ONLY)
 # =========================================================
 elif subpage == "Planning":
-    st.header("Planning — Fieldwork Rounds")
+    st.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
 
     assignments = get_assignments()
     areas = get_areas()
