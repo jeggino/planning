@@ -967,6 +967,7 @@ if subpage == "Assignments":
             format_func=lambda a: f"{a['name']} ({a['type']})"
         )
 
+    # NEW: Extra added
     assignment_type = st.radio(
         "Type of assignment",
         ["Deskwork", "Fieldwork", "Travel", "Extra"],
@@ -979,9 +980,9 @@ if subpage == "Assignments":
         )
     )
 
-
     name = st.text_input("Assignment name", value=selected["name"] if selected else "")
 
+    # NEW: Travel does NOT ask for hourly rate
     if assignment_type in ["Deskwork", "Fieldwork", "Extra"]:
         hourly_rate = st.number_input(
             "Hourly rate (€)",
@@ -990,35 +991,27 @@ if subpage == "Assignments":
     else:
         hourly_rate = None
 
-
-    # if assignment["type"] == "Deskwork":
-    #     hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-    #     travel_cost = None
-    
-    # elif assignment["type"] == "Fieldwork":
-    #     area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-    #     area_id = area["id"]
-    #     hours = None
-    #     travel_cost = None
-    
-    # elif assignment["type"] == "Travel":
-    #     area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-    #     area_id = area["id"]
-    #     travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
-    #     hours = None
-    
-    # elif assignment["type"] == "Extra":
-    #     hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-    #     travel_cost = None
-
+    # Fieldwork-specific fields
+    if assignment_type == "Fieldwork":
+        hours_per_round = st.number_input(
+            "Hours per round",
+            value=float(selected["hours_per_round"]) if selected and selected["hours_per_round"] is not None else 0.0
+        )
+        min_days = st.number_input(
+            "Minimum days between rounds",
+            value=int(selected["min_days_between_rounds"]) if selected and selected["min_days_between_rounds"] is not None else 0
+        )
+    else:
+        hours_per_round = None
+        min_days = None
 
     if st.button("Save assignment"):
         data = {
             "name": name,
             "type": assignment_type,
             "hourly_rate": hourly_rate,
-            "hours_per_round": hours_per_round if assignment_type == "Fieldwork" else None,
-            "min_days_between_rounds": min_days if assignment_type == "Fieldwork" else None,
+            "hours_per_round": hours_per_round,
+            "min_days_between_rounds": min_days,
         }
 
         if selected:
@@ -1043,6 +1036,7 @@ if subpage == "Assignments":
                 supabase.table("assignments").delete().eq("id", a_id).execute()
                 st.warning("Assignment deleted.")
                 refresh()
+
 
 # =========================================================
 # PAGE — AREAS
@@ -1118,24 +1112,18 @@ elif subpage == "Log Work Day":
 
     if assignment["type"] == "Deskwork":
         hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-        travel_cost = None
-    
+
     elif assignment["type"] == "Fieldwork":
         area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
         area_id = area["id"]
-        hours = None
-        travel_cost = None
-    
+
     elif assignment["type"] == "Travel":
         area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
         area_id = area["id"]
         travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=1.0)
-        hours = None
-    
+
     elif assignment["type"] == "Extra":
         hours = st.number_input("Hours worked", min_value=0.0, step=0.25)
-        travel_cost = None
-
 
     if st.button("Save work day"):
         supabase.table("rounds").insert({
@@ -1148,6 +1136,7 @@ elif subpage == "Log Work Day":
 
         st.success("Work day saved.")
         refresh()
+
 
 # ---------------------------------------------------------
 # PAGE — ROUNDS OVERVIEW & PLOT (UPDATED WITH TRAVEL COSTS)
