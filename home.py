@@ -967,18 +967,17 @@ if subpage == "Assignments":
             format_func=lambda a: f"{a['name']} ({a['type']})"
         )
 
-    # NEW: Extra added
     assignment_type = st.radio(
         "Type of assignment",
-        ["Deskwork", "Fieldwork", "Travel", "Extra"],
+        ["Deskwork", "Fieldwork", "Extra"],
         index=(
             0 if not selected else
             (0 if selected["type"] == "Deskwork"
              else 1 if selected["type"] == "Fieldwork"
-             else 2 if selected["type"] == "Travel"
-             else 3)
+             else 2)
         )
     )
+
 
     name = st.text_input("Assignment name", value=selected["name"] if selected else "")
 
