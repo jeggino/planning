@@ -1090,6 +1090,7 @@ elif subpage == "Areas":
 # =========================================================
 elif subpage == "Log Work Day":
     st.header("Log Work Day")
+    st.image("https://copilot.microsoft.com/th/id/BCO.d520a7b5-5d19-4eaa-9509-0986e5e35641.png")
 
     assignments = get_assignments()
     areas = get_areas()
