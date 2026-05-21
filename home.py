@@ -1338,7 +1338,7 @@ elif subpage == "Rounds Overview & Plot":
             refresh()
 
 # =========================================================
-# PAGE — PLANNING (FIELDWORK ONLY, OPTION C)
+# PAGE — PLANNING (FIELDWORK ONLY)
 # =========================================================
 elif subpage == "Planning":
     st.header("Planning — Fieldwork Rounds")
@@ -1521,7 +1521,7 @@ elif subpage == "Planning":
         st.dataframe(table_df, use_container_width=True)
 
 # =========================================================
-# PAGE — MONTHLY EARNINGS (SIMPLE, ROBUST)
+# PAGE — MONTHLY EARNINGS
 # =========================================================
 elif subpage == "Monthly Earnings":
     st.header("Monthly Earnings")
@@ -1558,9 +1558,10 @@ elif subpage == "Monthly Earnings":
 
     st.subheader("Monthly totals")
 
-    st.dataframe(monthly.rename(columns={"year_month": "Month", "earnings": "Net earnings (€)"}), use_container_width=True)
+    monthly_display = monthly.rename(columns={"year_month": "Month", "earnings": "Net earnings (€)"})
+    st.dataframe(monthly_display, use_container_width=True)
 
-    total = monthly["Net earnings (€)"] if "Net earnings (€)" in monthly.columns else monthly["earnings"]
+    total = monthly["earnings"]
     total_sum = float(total.sum())
     vat = total_sum * 0.21
     excl_vat = total_sum - vat
@@ -1575,3 +1576,4 @@ elif subpage == "Monthly Earnings":
         st.metric("VAT (21%)", f"€ {vat:,.2f}")
     with col3:
         st.metric("Total (excl. VAT)", f"€ {excl_vat:,.2f}")
+
