@@ -829,11 +829,6 @@ elif subpage == "Monthly Earnings":
 
         st.markdown("---")
 
-        # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE)
-        # ---------------------------------------------------------
-        st.subheader("Export invoice as PDF")
-
 
         # ---------------------------------------------------------
         # PDF EXPORT (DUTCH INVOICE, COMPACT, GROUPED TABLES)
@@ -957,7 +952,7 @@ elif subpage == "Monthly Earnings":
             # TABLE 1 — WORK SUMMARY
             # ---------------------------------------------------------
         
-            y -= 10  # move title slightly up
+            y -= 6  # move title slightly up
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(70, y, "Overzicht werkzaamheden")
             y -= 30  # more space before table
