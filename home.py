@@ -690,6 +690,151 @@ elif subpage == "Planning":
 
         st.dataframe(table_df, use_container_width=True)
 
+# ---------------------------------------------------------
+# PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
+# ---------------------------------------------------------
+elif subpage == "Monthly Earnings":
+    st.header("Monthly Earnings")
+
+    rounds = get_rounds()
+    if not rounds:
+        st.info("No rounds yet.")
+    else:
+        df = pd.DataFrame([
+            {
+                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
+                "assignment": r["assignments"]["name"] if r["assignments"] else None,
+                "type": (
+                    r["assignments"]["type"]
+                    if r["assignments"]
+                    else ("Travel" if r["travel_cost"] else None)
+                ),
+                "area": r["areas"]["name"] if r["areas"] else None,
+                "hours_worked": r["hours_worked"],
+                "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
+                "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
+                "travel_cost": r["travel_cost"]
+            }
+            for r in rounds
+        ])
+
+        # ---------------------------------------------------------
+        # COMPUTE HOURS + AMOUNT
+        # ---------------------------------------------------------
+        def compute_amount(row):
+            if row["type"] == "Deskwork":
+                return (row["hours_worked"] or 0) * (row["rate"] or 0)
+            elif row["type"] == "Fieldwork":
+                return (row["hours_per_round"] or 0) * (row["rate"] or 0)
+            elif row["type"] == "Extra":
+                return (row["hours_worked"] or 0) * (row["rate"] or 0)
+            else:
+                return row["travel_cost"] or 0
+
+        df["amount"] = df.apply(compute_amount, axis=1)
+        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
+
+        # ---------------------------------------------------------
+        # MONTH SELECTION
+        # ---------------------------------------------------------
+        st.subheader("Select month(s)")
+        months = sorted(df["month"].unique())
+        selected_months = st.multiselect("Months", months, default=[months[-1]])
+
+        if not selected_months:
+            st.info("Select at least one month.")
+            st.stop()
+
+        df_month = df[df["month"].isin(selected_months)]
+
+        # ---------------------------------------------------------
+        # TOTALS
+        # ---------------------------------------------------------
+        subtotal = df_month["amount"].sum()
+        vat = subtotal * 0.21
+        total = subtotal + vat
+
+        st.metric("Subtotal", f"€ {subtotal:,.2f}")
+        st.metric("VAT 21%", f"€ {vat:,.2f}")
+        st.metric("Total", f"€ {total:,.2f}")
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # HOURS PER ASSIGNMENT
+        # ---------------------------------------------------------
+        st.subheader("Hours per assignment")
+
+        df_hours = df_month[df_month["type"] != "Travel"].copy()
+        df_hours["hours"] = df_hours.apply(
+            lambda r: (
+                r["hours_worked"]
+                if r["type"] in ["Deskwork", "Extra"]
+                else r["hours_per_round"]
+            ),
+            axis=1
+        )
+
+        hours_assignment = (
+            df_hours.groupby("assignment")["hours"]
+            .sum()
+            .reset_index()
+            .sort_values("hours", ascending=False)
+        )
+
+        st.dataframe(hours_assignment, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # TRAVEL COSTS TABLE
+        # ---------------------------------------------------------
+        st.subheader("Travel Costs")
+
+        df_travel = df_month[df_month["type"] == "Travel"]
+
+        if df_travel.empty:
+            st.info("No travel costs this month.")
+        else:
+            travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
+            st.dataframe(travel_table, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # EARNINGS PER ASSIGNMENT
+        # ---------------------------------------------------------
+        st.subheader("Total earnings per assignment")
+
+        earnings_assignment = (
+            df_month[df_month["type"] != "Travel"]
+            .groupby("assignment")["amount"]
+            .sum()
+            .reset_index()
+            .sort_values("amount", ascending=False)
+        )
+
+        st.dataframe(earnings_assignment, use_container_width=True)
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # CLIENT INFO
+        # ---------------------------------------------------------
+        st.subheader("Client information (for invoice)")
+        klant_naam = st.text_input("Client name")
+        klant_adres = st.text_input("Client address")
+        klant_postcode = st.text_input("Client postcode")
+        klant_stad = st.text_input("Client city")
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------
+        # PDF EXPORT (DUTCH INVOICE)
+        # ---------------------------------------------------------
+        st.subheader("Export invoice as PDF")
+
+
         # ---------------------------------------------------------
         # PDF EXPORT (DUTCH INVOICE, COMPACT, GROUPED TABLES)
         # ---------------------------------------------------------
