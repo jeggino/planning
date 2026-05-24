@@ -1279,14 +1279,14 @@ elif subpage == "Monthly Earnings":
             story.append(Paragraph(f"Datum: {factuurdatum}", right_text))
             story.append(Spacer(1, 12))
 
-            # CLIENT
-            story.append(Paragraph("<b>Klant</b>", bold))
+            # OPDRACHTGEVER
+            story.append(Paragraph("<b>Opdrachtgever</b>", bold))
             story.append(Paragraph(klant_naam, normal))
             story.append(Paragraph(klant_adres, normal))
             story.append(Paragraph(f"{klant_postcode} {klant_stad}", normal))
             story.append(Spacer(1, 12))
 
-            # CONTRACTOR
+            # OPDRACHTNEMER
             story.append(Paragraph("<b>Opdrachtnemer</b>", bold))
             story.append(Paragraph(eigen_naam, normal))
             story.append(Paragraph(eigen_adres, normal))
@@ -1353,24 +1353,12 @@ elif subpage == "Monthly Earnings":
             story.append(Spacer(1, 18))
 
             # -----------------------------------------------------
-            # TOTALS (RIGHT SIDE)
-            # -----------------------------------------------------
-            story.append(Paragraph(f"<b>Subtotaal werkzaamheden:</b> € {subtotal:,.2f}", right_text))
-            story.append(Paragraph(f"<b>BTW 21%:</b> € {vat:,.2f}", right_text))
-            story.append(Paragraph(f"<b>Totaal (excl. reiskosten):</b> € {total:,.2f}", right_text))
-            story.append(Spacer(1, 12))
-
-            story.append(Paragraph(f"<b>Reiskosten [1]:</b> € {travel_total:,.2f}", right_text))
-            story.append(Paragraph(f"<b>Eindtotaal [2]:</b> € {final_total:,.2f}", red_total))
-            story.append(Spacer(1, 24))
-
-            # -----------------------------------------------------
             # PAGE BREAK
             # -----------------------------------------------------
             story.append(PageBreak())
 
             # -----------------------------------------------------
-            # PAGE 2 — AREA SUMMARY
+            # PAGE 2 — AREA SUMMARY (LIST, NOT ONE PER PAGE)
             # -----------------------------------------------------
             story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading_center))
             story.append(Spacer(1, 12))
@@ -1380,7 +1368,6 @@ elif subpage == "Monthly Earnings":
                 area = row["area"]
 
                 if area != current_area:
-                    story.append(PageBreak())  # force clean break
                     story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
                     story.append(Spacer(1, 6))
                     current_area = area
@@ -1392,15 +1379,31 @@ elif subpage == "Monthly Earnings":
                 story.append(Spacer(1, 10))
 
             # -----------------------------------------------------
-            # FOOTER ON PAGE 1 ONLY
+            # FOOTER + FIXED TOTALS ON PAGE 1
             # -----------------------------------------------------
             def first_page(canvas, doc_obj):
                 canvas.saveState()
+
+                # FOOTER
                 canvas.setFont("Helvetica", 7)
                 x = doc_obj.leftMargin
                 y = 12 * mm
                 canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
                 canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
+
+                # FIXED TOTALS (BOTTOM RIGHT)
+                canvas.setFont("Helvetica", 10)
+                tx = doc_obj.width + doc_obj.leftMargin
+                ty = 40 * mm
+
+                canvas.drawRightString(tx, ty + 30, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
+                canvas.drawRightString(tx, ty + 15, f"BTW 21%: € {vat:,.2f}")
+                canvas.drawRightString(tx, ty, f"Totaal (excl. reiskosten): € {total:,.2f}")
+
+                canvas.setFillColor(colors.red)
+                canvas.drawRightString(tx, ty - 15, f"Eindtotaal: € {final_total:,.2f}")
+                canvas.setFillColor(colors.black)
+
                 canvas.restoreState()
 
             def later_pages(canvas, doc_obj):
@@ -1415,6 +1418,7 @@ elif subpage == "Monthly Earnings":
                 file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf",
             )
+
 
 
 
