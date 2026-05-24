@@ -1243,10 +1243,10 @@ elif subpage == "Monthly Earnings":
             heading_center = ParagraphStyle(
                 "heading_center",
                 parent=styles["Heading1"],
-                fontSize=18,
+                fontSize=20,
                 alignment=1,  # center
                 italic=0,
-                textColor=colors.green,
+                textColor=colors.blue,
             )
 
             indent1 = ParagraphStyle(
