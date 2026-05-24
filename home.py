@@ -835,18 +835,308 @@ elif subpage == "Monthly Earnings":
         st.subheader("Export invoice as PDF")
 
 
+        # # ---------------------------------------------------------
+        # # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
+        # # ---------------------------------------------------------
+        # st.subheader("Export invoice as PDF")
+        
+        # if st.button("Generate PDF"):
+        #     import random
+        #     from reportlab.lib import colors
+        #     from reportlab.platypus import Table, TableStyle
+        
+        #     bedrijf = st.secrets["bedrijf"]
+        
+        #     eigen_naam = bedrijf["naam"]
+        #     eigen_adres = bedrijf["adres"]
+        #     eigen_postcode = bedrijf["postcode"]
+        #     eigen_stad = bedrijf["stad"]
+        #     eigen_mobiel = bedrijf["mobiel"]
+        #     eigen_email = bedrijf["email"]
+        #     eigen_kvk = bedrijf["kvk"]
+        #     eigen_btw = bedrijf["btw"]
+        #     eigen_iban = bedrijf["iban"]
+        
+        #     if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
+        #         st.error("Please fill in all client fields before generating the invoice.")
+        #         st.stop()
+        
+        #     vandaag = datetime.today()
+        #     factuurdatum = vandaag.strftime("%d-%m-%Y")
+        #     factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
+        
+        #     buffer = io.BytesIO()
+        #     pdf = canvas.Canvas(buffer, pagesize=A4)
+        #     width, height = A4
+        
+        #     # HEADER
+        #     pdf.setFillColor(colors.blue)
+        #     pdf.setFont("Helvetica-Bold", 22)
+        #     pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
+        
+        #     pdf.setFillColor(colors.black)
+        #     pdf.setFont("Helvetica", 12)
+        #     pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
+        
+        #     pdf.setFont("Helvetica", 10)
+        #     pdf.drawRightString(width - 40, height - 115, f"Datum: {factuurdatum}")
+        
+        #     y = height - 180
+        
+        #     # CLIENT
+        #     pdf.setFont("Helvetica-Bold", 12)
+        #     pdf.drawString(70, y, "Klant")
+        #     y -= 18
+        
+        #     pdf.setFont("Helvetica", 10)
+        #     pdf.drawString(70, y, klant_naam)
+        #     y -= 14
+        #     pdf.drawString(70, y, klant_adres)
+        #     y -= 14
+        #     pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
+        
+        #     y -= 20
+        #     pdf.line(70, y, width / 2, y)
+        
+        #     # CONTRACTOR
+        #     y -= 25
+        #     pdf.setFont("Helvetica-Bold", 12)
+        #     pdf.drawString(70, y, "Opdrachtnemer")
+        #     y -= 18
+        
+        #     pdf.setFont("Helvetica", 10)
+        #     pdf.drawString(70, y, eigen_naam)
+        #     y -= 14
+        #     pdf.drawString(70, y, eigen_adres)
+        #     y -= 14
+        #     pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
+        #     y -= 14
+        #     pdf.drawString(70, y, f"Telefoon: {eigen_mobiel}")
+        #     y -= 14
+        #     pdf.drawString(70, y, f"E-mail: {eigen_email}")
+        #     y -= 14
+        #     pdf.drawString(70, y, f"KvK: {eigen_kvk}")
+        #     y -= 14
+        #     pdf.drawString(70, y, f"BTW: {eigen_btw}")
+        #     y -= 14
+        #     pdf.drawString(70, y, f"IBAN: {eigen_iban}")
+        
+        #     y -= 30
+        #     pdf.line(70, y, width - 40, y)
+        #     y -= 40
+        
+        #     # ---------------------------------------------------------
+        #     # GROUPED TABLES FOR INVOICE (DUTCH)
+        #     # ---------------------------------------------------------
+        
+        #     df_assign = df_month[df_month["type"] != "Travel"].copy()
+        #     df_assign["hours"] = df_assign.apply(
+        #         lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+        #         axis=1
+        #     )
+        
+        #     assign_summary = (
+        #         df_assign.groupby("assignment")
+        #         .agg(
+        #             total_hours=("hours", "sum"),
+        #             hourly_rate=("rate", "first"),
+        #             total_amount=("amount", "sum")
+        #         )
+        #         .reset_index()
+        #     )
+        
+        #     travel_summary = (
+        #         df_month[df_month["type"] == "Travel"]
+        #         .groupby("area")["travel_cost"]
+        #         .sum()
+        #         .reset_index()
+        #     )
+        
+        #     # ---------------------------------------------------------
+        #     # TABLE 1 — WORK SUMMARY
+        #     # ---------------------------------------------------------
+        
+        #     y -= 6
+        #     pdf.setFont("Helvetica-Bold", 12)
+        #     pdf.drawString(70, y, "Overzicht werkzaamheden")
+        #     y -= 30
+        
+        #     table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
+        
+        #     for _, row in assign_summary.iterrows():
+        #         table1_data.append([
+        #             row["assignment"],
+        #             f"{row['total_hours']:.2f}",
+        #             f"{row['hourly_rate']:,.2f}",
+        #             f"{row['total_amount']:,.2f}"
+        #         ])
+        
+        #     table1 = Table(table1_data, colWidths=[180, 60, 80, 80])
+        #     table1.setStyle(TableStyle([
+        #         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        #         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        #         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        #         ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        #         ("FONTSIZE", (0, 0), (-1, -1), 8),
+        #     ]))
+        
+        #     table1.wrapOn(pdf, width, height)
+        #     table1_height = len(table1_data) * 15
+        #     table1.drawOn(pdf, 70, y - table1_height)
+        #     y -= table1_height + 20
+        
+        #     # ---------------------------------------------------------
+        #     # TABLE 2 — TRAVEL COSTS (PLACED HERE)
+        #     # ---------------------------------------------------------
+        
+        #     pdf.setFont("Helvetica-Bold", 12)
+        #     pdf.drawString(70, y, "Reiskosten")
+        #     y -= 20
+        
+        #     if travel_summary.empty:
+        #         pdf.setFont("Helvetica", 10)
+        #         pdf.drawString(70, y, "Geen reiskosten in deze periode.")
+        #         y -= 20
+        #     else:
+        #         travel_data = [["Gebied", "Bedrag (€)"]]
+        #         for _, row in travel_summary.iterrows():
+        #             travel_data.append([
+        #                 row["area"],
+        #                 f"{row['travel_cost']:,.2f}"
+        #             ])
+        
+        #         table2 = Table(travel_data, colWidths=[220, 100])
+        #         table2.setStyle(TableStyle([
+        #             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        #             ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        #             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        #             ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        #             ("FONTSIZE", (0, 0), (-1, -1), 8),
+        #         ]))
+        
+        #         table2.wrapOn(pdf, width, height)
+        #         table2_height = len(travel_data) * 15
+        #         table2.drawOn(pdf, 70, y - table2_height)
+        #         y -= table2_height + 30
+        
+        #     # ---------------------------------------------------------
+        #     # TOTALS (WORK ONLY)
+        #     # ---------------------------------------------------------
+        
+        #     pdf.setFont("Helvetica-Bold", 11)
+        #     pdf.drawRightString(width - 40, y, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
+        #     y -= 18
+        #     pdf.drawRightString(width - 40, y, f"BTW 21%: € {vat:,.2f}")
+        #     y -= 18
+        #     pdf.drawRightString(width - 40, y, f"Totaal (excl. reiskosten): € {total:,.2f}")
+        #     y -= 25
+        
+        #     # ---------------------------------------------------------
+        #     # TRAVEL COSTS AFTER VAT
+        #     # ---------------------------------------------------------
+        
+        #     travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
+        
+        #     pdf.drawRightString(width - 40, y, f"Reiskosten [1]: € {travel_total:,.2f}")
+        #     y -= 18
+        
+        #     final_total = total + travel_total
+        #     pdf.drawRightString(width - 40, y, f"Eindtotaal [2]: € {final_total:,.2f}")
+        #     y -= 35
+        
+        #     # FOOTNOTES
+        #     pdf.setFont("Helvetica", 8)
+        #     pdf.drawString(70, y, "[1] Reiskosten zijn vrijgesteld van BTW.")
+        #     y -= 12
+        #     pdf.drawString(70, y, "[2] Betalingstermijn bedraagt **14 dagen** na factuurdatum.")
+        
+        #     # ---------------------------------------------------------
+        #     # PAGE 2 — GROUPED LIST PER AREA
+        #     # ---------------------------------------------------------
+        
+        #     pdf.showPage()
+        #     y = height - 80
+        
+        #     pdf.setFont("Helvetica-Bold", 18)
+        #     pdf.drawString(70, y, "Uren en inkomsten per gebied en opdracht")
+        #     y -= 40
+        
+        #     # Compute hours per area + assignment
+        #     df_area = df_month[df_month["type"] != "Travel"].copy()
+        #     df_area["hours"] = df_area.apply(
+        #         lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+        #         axis=1
+        #     )
+        
+        #     area_summary = (
+        #         df_area.groupby(["area", "assignment"])
+        #         .agg(
+        #             total_hours=("hours", "sum"),
+        #             hourly_rate=("rate", "first"),
+        #             total_amount=("amount", "sum")
+        #         )
+        #         .reset_index()
+        #     )
+        
+        #     pdf.setFont("Helvetica", 10)
+        
+        #     current_area = None
+        
+        #     for _, row in area_summary.iterrows():
+        #         area = row["area"]
+        
+        #         if area != current_area:
+        #             pdf.setFont("Helvetica-Bold", 12)
+        #             pdf.drawString(70, y, f"Gebied: {area}")
+        #             y -= 20
+        #             current_area = area
+        
+        #         pdf.setFont("Helvetica", 10)
+        #         pdf.drawString(90, y, f"- Opdracht: {row['assignment']}")
+        #         y -= 14
+        #         pdf.drawString(110, y, f"Uren: {row['total_hours']:.2f}")
+        #         y -= 14
+        #         pdf.drawString(110, y, f"Uurloon: € {row['hourly_rate']:,.2f}")
+        #         y -= 14
+        #         pdf.drawString(110, y, f"Bedrag: € {row['total_amount']:,.2f}")
+        #         y -= 20
+        
+        #         if y < 100:
+        #             pdf.showPage()
+        #             y = height - 80
+        #             pdf.setFont("Helvetica-Bold", 18)
+        #             pdf.drawString(70, y, "Uren en inkomsten per gebied en opdracht")
+        #             y -= 40
+        #             pdf.setFont("Helvetica", 10)
+        
+        #     pdf.save()
+        #     buffer.seek(0)
+        
+        #     st.download_button(
+        #         "Download PDF",
+        #         buffer,
+        #         file_name=f"factuur_{factuurnummer}.pdf",
+        #         mime="application/pdf"
+        #     )
+
         # ---------------------------------------------------------
         # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
-        
+
         if st.button("Generate PDF"):
             import random
+            import io
             from reportlab.lib import colors
-            from reportlab.platypus import Table, TableStyle
-        
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.units import mm
+            from reportlab.platypus import (
+                SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+            )
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
             bedrijf = st.secrets["bedrijf"]
-        
+
             eigen_naam = bedrijf["naam"]
             eigen_adres = bedrijf["adres"]
             eigen_postcode = bedrijf["postcode"]
@@ -856,85 +1146,24 @@ elif subpage == "Monthly Earnings":
             eigen_kvk = bedrijf["kvk"]
             eigen_btw = bedrijf["btw"]
             eigen_iban = bedrijf["iban"]
-        
+
             if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
                 st.error("Please fill in all client fields before generating the invoice.")
                 st.stop()
-        
+
             vandaag = datetime.today()
             factuurdatum = vandaag.strftime("%d-%m-%Y")
             factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
-        
-            buffer = io.BytesIO()
-            pdf = canvas.Canvas(buffer, pagesize=A4)
-            width, height = A4
-        
-            # HEADER
-            pdf.setFillColor(colors.blue)
-            pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
-        
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica", 12)
-            pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
-        
-            pdf.setFont("Helvetica", 10)
-            pdf.drawRightString(width - 40, height - 115, f"Datum: {factuurdatum}")
-        
-            y = height - 180
-        
-            # CLIENT
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Klant")
-            y -= 18
-        
-            pdf.setFont("Helvetica", 10)
-            pdf.drawString(70, y, klant_naam)
-            y -= 14
-            pdf.drawString(70, y, klant_adres)
-            y -= 14
-            pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
-        
-            y -= 20
-            pdf.line(70, y, width / 2, y)
-        
-            # CONTRACTOR
-            y -= 25
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Opdrachtnemer")
-            y -= 18
-        
-            pdf.setFont("Helvetica", 10)
-            pdf.drawString(70, y, eigen_naam)
-            y -= 14
-            pdf.drawString(70, y, eigen_adres)
-            y -= 14
-            pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
-            y -= 14
-            pdf.drawString(70, y, f"Telefoon: {eigen_mobiel}")
-            y -= 14
-            pdf.drawString(70, y, f"E-mail: {eigen_email}")
-            y -= 14
-            pdf.drawString(70, y, f"KvK: {eigen_kvk}")
-            y -= 14
-            pdf.drawString(70, y, f"BTW: {eigen_btw}")
-            y -= 14
-            pdf.drawString(70, y, f"IBAN: {eigen_iban}")
-        
-            y -= 30
-            pdf.line(70, y, width - 40, y)
-            y -= 40
-        
-            # ---------------------------------------------------------
-            # GROUPED TABLES FOR INVOICE (DUTCH)
-            # ---------------------------------------------------------
-        
+
+            # -----------------------------------------------------
+            # PREPARE DATA FOR TABLES
+            # -----------------------------------------------------
             df_assign = df_month[df_month["type"] != "Travel"].copy()
             df_assign["hours"] = df_assign.apply(
                 lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
                 axis=1
             )
-        
+
             assign_summary = (
                 df_assign.groupby("assignment")
                 .agg(
@@ -944,130 +1173,20 @@ elif subpage == "Monthly Earnings":
                 )
                 .reset_index()
             )
-        
+
             travel_summary = (
                 df_month[df_month["type"] == "Travel"]
                 .groupby("area")["travel_cost"]
                 .sum()
                 .reset_index()
             )
-        
-            # ---------------------------------------------------------
-            # TABLE 1 — WORK SUMMARY
-            # ---------------------------------------------------------
-        
-            y -= 6
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Overzicht werkzaamheden")
-            y -= 30
-        
-            table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
-        
-            for _, row in assign_summary.iterrows():
-                table1_data.append([
-                    row["assignment"],
-                    f"{row['total_hours']:.2f}",
-                    f"{row['hourly_rate']:,.2f}",
-                    f"{row['total_amount']:,.2f}"
-                ])
-        
-            table1 = Table(table1_data, colWidths=[180, 60, 80, 80])
-            table1.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ]))
-        
-            table1.wrapOn(pdf, width, height)
-            table1_height = len(table1_data) * 15
-            table1.drawOn(pdf, 70, y - table1_height)
-            y -= table1_height + 20
-        
-            # ---------------------------------------------------------
-            # TABLE 2 — TRAVEL COSTS (PLACED HERE)
-            # ---------------------------------------------------------
-        
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Reiskosten")
-            y -= 20
-        
-            if travel_summary.empty:
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(70, y, "Geen reiskosten in deze periode.")
-                y -= 20
-            else:
-                travel_data = [["Gebied", "Bedrag (€)"]]
-                for _, row in travel_summary.iterrows():
-                    travel_data.append([
-                        row["area"],
-                        f"{row['travel_cost']:,.2f}"
-                    ])
-        
-                table2 = Table(travel_data, colWidths=[220, 100])
-                table2.setStyle(TableStyle([
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ]))
-        
-                table2.wrapOn(pdf, width, height)
-                table2_height = len(travel_data) * 15
-                table2.drawOn(pdf, 70, y - table2_height)
-                y -= table2_height + 30
-        
-            # ---------------------------------------------------------
-            # TOTALS (WORK ONLY)
-            # ---------------------------------------------------------
-        
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawRightString(width - 40, y, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
-            y -= 18
-            pdf.drawRightString(width - 40, y, f"BTW 21%: € {vat:,.2f}")
-            y -= 18
-            pdf.drawRightString(width - 40, y, f"Totaal (excl. reiskosten): € {total:,.2f}")
-            y -= 25
-        
-            # ---------------------------------------------------------
-            # TRAVEL COSTS AFTER VAT
-            # ---------------------------------------------------------
-        
-            travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
-        
-            pdf.drawRightString(width - 40, y, f"Reiskosten [1]: € {travel_total:,.2f}")
-            y -= 18
-        
-            final_total = total + travel_total
-            pdf.drawRightString(width - 40, y, f"Eindtotaal [2]: € {final_total:,.2f}")
-            y -= 35
-        
-            # FOOTNOTES
-            pdf.setFont("Helvetica", 8)
-            pdf.drawString(70, y, "[1] Reiskosten zijn vrijgesteld van BTW.")
-            y -= 12
-            pdf.drawString(70, y, "[2] Betalingstermijn bedraagt **14 dagen** na factuurdatum.")
-        
-            # ---------------------------------------------------------
-            # PAGE 2 — GROUPED LIST PER AREA
-            # ---------------------------------------------------------
-        
-            pdf.showPage()
-            y = height - 80
-        
-            pdf.setFont("Helvetica-Bold", 18)
-            pdf.drawString(70, y, "Uren en inkomsten per gebied en opdracht")
-            y -= 40
-        
-            # Compute hours per area + assignment
+
             df_area = df_month[df_month["type"] != "Travel"].copy()
             df_area["hours"] = df_area.apply(
                 lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
                 axis=1
             )
-        
+
             area_summary = (
                 df_area.groupby(["area", "assignment"])
                 .agg(
@@ -1077,46 +1196,176 @@ elif subpage == "Monthly Earnings":
                 )
                 .reset_index()
             )
-        
-            pdf.setFont("Helvetica", 10)
-        
+
+            travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
+            final_total = total + travel_total
+
+            # -----------------------------------------------------
+            # BUILD PDF WITH PLATYPUS
+            # -----------------------------------------------------
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=A4,
+                leftMargin=20 * mm,
+                rightMargin=20 * mm,
+                topMargin=20 * mm,
+                bottomMargin=20 * mm,
+            )
+
+            styles = getSampleStyleSheet()
+            normal = styles["Normal"]
+            body = styles["BodyText"]
+
+            title_style = ParagraphStyle(
+                "title_style",
+                parent=styles["Heading1"],
+                fontSize=20,
+                textColor=colors.blue,
+                alignment=2,  # right
+            )
+
+            bold = ParagraphStyle(
+                "bold",
+                parent=styles["Heading4"],
+                fontSize=12,
+                spaceAfter=4,
+            )
+
+            story = []
+
+            # -----------------------------------------------------
+            # PAGE 1 — HEADER
+            # -----------------------------------------------------
+            story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
+            story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", normal))
+            story.append(Paragraph(f"Datum: {factuurdatum}", normal))
+            story.append(Spacer(1, 12))
+
+            # CLIENT
+            story.append(Paragraph("<b>Klant</b>", bold))
+            story.append(Paragraph(klant_naam, normal))
+            story.append(Paragraph(klant_adres, normal))
+            story.append(Paragraph(f"{klant_postcode} {klant_stad}", normal))
+            story.append(Spacer(1, 12))
+
+            # CONTRACTOR
+            story.append(Paragraph("<b>Opdrachtnemer</b>", bold))
+            story.append(Paragraph(eigen_naam, normal))
+            story.append(Paragraph(eigen_adres, normal))
+            story.append(Paragraph(f"{eigen_postcode} {eigen_stad}", normal))
+            story.append(Paragraph(f"Telefoon: {eigen_mobiel}", normal))
+            story.append(Paragraph(f"E-mail: {eigen_email}", normal))
+            story.append(Paragraph(f"KvK: {eigen_kvk}", normal))
+            story.append(Paragraph(f"BTW: {eigen_btw}", normal))
+            story.append(Paragraph(f"IBAN: {eigen_iban}", normal))
+            story.append(Spacer(1, 18))
+
+            # WORK SUMMARY TABLE
+            story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
+            story.append(Spacer(1, 6))
+
+            table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
+            for _, row in assign_summary.iterrows():
+                table1_data.append([
+                    row["assignment"],
+                    f"{row['total_hours']:.2f}",
+                    f"{row['hourly_rate']:,.2f}",
+                    f"{row['total_amount']:,.2f}",
+                ])
+
+            table1 = Table(table1_data, colWidths=[180, 60, 80, 80])
+            table1.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ]))
+            story.append(table1)
+            story.append(Spacer(1, 18))
+
+            # TRAVEL COSTS TABLE
+            story.append(Paragraph("<b>Reiskosten</b>", bold))
+            story.append(Spacer(1, 6))
+
+            if travel_summary.empty:
+                story.append(Paragraph("Geen reiskosten in deze periode.", normal))
+            else:
+                travel_data = [["Gebied", "Bedrag (€)"]]
+                for _, row in travel_summary.iterrows():
+                    travel_data.append([
+                        row["area"],
+                        f"{row['travel_cost']:,.2f}",
+                    ])
+
+                table2 = Table(travel_data, colWidths=[220, 100])
+                table2.setStyle(TableStyle([
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ]))
+                story.append(table2)
+
+            story.append(Spacer(1, 18))
+
+            # TOTALS
+            story.append(Paragraph(f"<b>Subtotaal werkzaamheden:</b> € {subtotal:,.2f}", normal))
+            story.append(Paragraph(f"<b>BTW 21%:</b> € {vat:,.2f}", normal))
+            story.append(Paragraph(f"<b>Totaal (excl. reiskosten):</b> € {total:,.2f}", normal))
+            story.append(Spacer(1, 12))
+
+            story.append(Paragraph(f"<b>Reiskosten [1]:</b> € {travel_total:,.2f}", normal))
+            story.append(Paragraph(f"<b>Eindtotaal [2]:</b> € {final_total:,.2f}", normal))
+            story.append(Spacer(1, 18))
+
+            # FOOTNOTES
+            story.append(Paragraph("[1] Reiskosten zijn vrijgesteld van BTW.", body))
+            story.append(Paragraph("[2] Betalingstermijn bedraagt <b>14 dagen</b> na factuurdatum.", body))
+
+            # PAGE BREAK
+            story.append(PageBreak())
+
+            # -----------------------------------------------------
+            # PAGE 2 — UREN EN INKOMSTEN PER GEBIED EN OPDRACHT
+            # -----------------------------------------------------
+            heading2 = ParagraphStyle(
+                "heading2",
+                parent=styles["Heading1"],
+                fontSize=18,
+                spaceAfter=12,
+            )
+
+            story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading2))
+            story.append(Spacer(1, 12))
+
             current_area = None
-        
             for _, row in area_summary.iterrows():
                 area = row["area"]
-        
                 if area != current_area:
-                    pdf.setFont("Helvetica-Bold", 12)
-                    pdf.drawString(70, y, f"Gebied: {area}")
-                    y -= 20
+                    # New area header
+                    story.append(Spacer(1, 8))
+                    story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
+                    story.append(Spacer(1, 6))
                     current_area = area
-        
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(90, y, f"- Opdracht: {row['assignment']}")
-                y -= 14
-                pdf.drawString(110, y, f"Uren: {row['total_hours']:.2f}")
-                y -= 14
-                pdf.drawString(110, y, f"Uurloon: € {row['hourly_rate']:,.2f}")
-                y -= 14
-                pdf.drawString(110, y, f"Bedrag: € {row['total_amount']:,.2f}")
-                y -= 20
-        
-                if y < 100:
-                    pdf.showPage()
-                    y = height - 80
-                    pdf.setFont("Helvetica-Bold", 18)
-                    pdf.drawString(70, y, "Uren en inkomsten per gebied en opdracht")
-                    y -= 40
-                    pdf.setFont("Helvetica", 10)
-        
-            pdf.save()
+
+                # A3 style: spaced, readable block per assignment
+                story.append(Paragraph(f"- Opdracht: {row['assignment']}", normal))
+                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", normal))
+                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", normal))
+                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", normal))
+                story.append(Spacer(1, 10))
+
+            # BUILD PDF
+            doc.build(story)
             buffer.seek(0)
-        
+
             st.download_button(
                 "Download PDF",
                 buffer,
                 file_name=f"factuur_{factuurnummer}.pdf",
-                mime="application/pdf"
+                mime="application/pdf",
             )
-
 
