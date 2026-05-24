@@ -831,7 +831,7 @@ elif subpage == "Monthly Earnings":
 
 
         # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA BREAKDOWN)
+        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT BREAKDOWN)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
         
@@ -924,7 +924,6 @@ elif subpage == "Monthly Earnings":
             # GROUPED TABLES FOR INVOICE (DUTCH)
             # ---------------------------------------------------------
         
-            # FIXED: "Extra" now counts hours like Deskwork
             df_assign = df_month[df_month["type"] != "Travel"].copy()
             df_assign["hours"] = df_assign.apply(
                 lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
@@ -994,7 +993,7 @@ elif subpage == "Monthly Earnings":
             y -= 30
         
             # ---------------------------------------------------------
-            # TRAVEL COSTS ADDED AFTER VAT
+            # TRAVEL COSTS AFTER VAT
             # ---------------------------------------------------------
         
             travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
@@ -1006,22 +1005,24 @@ elif subpage == "Monthly Earnings":
             pdf.drawRightString(width - 40, y, f"Eindtotaal: € {final_total:,.2f}")
             y -= 40
         
-            # FOOTNOTE
+            # FOOTNOTES
             pdf.setFont("Helvetica", 8)
             pdf.drawString(70, y, "[1] Reiskosten zijn vrijgesteld van BTW.")
+            y -= 12
+            pdf.drawString(70, y, "[2] Betalingstermijn bedraagt **14 dagen** na factuurdatum.")
         
             # ---------------------------------------------------------
-            # PAGE 2 — BREAKDOWN PER AREA
+            # PAGE 2 — BREAKDOWN PER AREA AND ASSIGNMENT
             # ---------------------------------------------------------
         
             pdf.showPage()
             y = height - 80
         
             pdf.setFont("Helvetica-Bold", 18)
-            pdf.drawString(70, y, "Uren en inkomsten per gebied")
+            pdf.drawString(70, y, "Uren en inkomsten per gebied en opdracht")
             y -= 40
         
-            # Compute hours per area
+            # Compute hours per area + assignment
             df_area = df_month[df_month["type"] != "Travel"].copy()
             df_area["hours"] = df_area.apply(
                 lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
@@ -1029,30 +1030,33 @@ elif subpage == "Monthly Earnings":
             )
         
             area_summary = (
-                df_area.groupby("area")
+                df_area.groupby(["area", "assignment"])
                 .agg(
                     total_hours=("hours", "sum"),
+                    hourly_rate=("rate", "first"),
                     total_amount=("amount", "sum")
                 )
                 .reset_index()
             )
         
-            table_area_data = [["Gebied", "Uren", "Bedrag (€)"]]
+            table_area_data = [["Gebied", "Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
         
             for _, row in area_summary.iterrows():
                 table_area_data.append([
                     row["area"],
+                    row["assignment"],
                     f"{row['total_hours']:.2f}",
+                    f"{row['hourly_rate']:,.2f}",
                     f"{row['total_amount']:,.2f}"
                 ])
         
-            table_area = Table(table_area_data, colWidths=[200, 80, 100])
+            table_area = Table(table_area_data, colWidths=[120, 140, 60, 70, 70])
             table_area.setStyle(TableStyle([
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("ALIGN", (2, 1), (-1, -1), "CENTER"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
             ]))
         
             table_area.wrapOn(pdf, width, height)
@@ -1067,3 +1071,4 @@ elif subpage == "Monthly Earnings":
                 file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
+
