@@ -1384,31 +1384,57 @@ elif subpage == "Monthly Earnings":
             def first_page(canvas, doc_obj):
                 canvas.saveState()
             
-                # FOOTER
+                # ---------------------------------------------------------
+                # FOOTER (with bold "14 dagen")
+                # ---------------------------------------------------------
                 canvas.setFont("Helvetica", 7)
                 x = doc_obj.leftMargin
                 y = 12 * mm
                 canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
-                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
+                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt ")
+                canvas.setFont("Helvetica-Bold", 7)
+                canvas.drawString(x + 125, y, "14 dagen")
+                canvas.setFont("Helvetica", 7)
+                canvas.drawString(x + 165, y, " na factuurdatum.")
             
-                # FIXED TOTALS (BOTTOM RIGHT)
+                # ---------------------------------------------------------
+                # TOTALS BOX (shaded + horizontal line)
+                # ---------------------------------------------------------
                 tx = doc_obj.leftMargin + doc_obj.width
-                ty = 45 * mm   # adjust if needed
+                box_top = 65 * mm
+                box_bottom = 35 * mm
+                box_left = doc_obj.leftMargin + 60
+                box_right = doc_obj.leftMargin + doc_obj.width
             
-                # Normal totals
-                canvas.setFont("Helvetica", 10)
+                # Shaded background
+                canvas.setFillColorRGB(0.95, 0.95, 0.95)
+                canvas.rect(box_left, box_bottom, box_right - box_left, box_top - box_bottom, fill=1, stroke=0)
+            
+                # Horizontal line above totals
+                canvas.setStrokeColor(colors.grey)
+                canvas.setLineWidth(0.5)
+                canvas.line(box_left, box_top + 5, box_right, box_top + 5)
+            
+                # ---------------------------------------------------------
+                # TOTALS TEXT (right aligned)
+                # ---------------------------------------------------------
                 canvas.setFillColor(colors.black)
-                canvas.drawRightString(tx, ty + 45, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
-                canvas.drawRightString(tx, ty + 30, f"BTW 21%: € {vat:,.2f}")
-                canvas.drawRightString(tx, ty + 15, f"Totaal (excl. reiskosten): € {total:,.2f}")
-                canvas.drawRightString(tx, ty, f"Reiskosten [1]: € {travel_total:,.2f}")
+                canvas.setFont("Helvetica", 10)
+            
+                canvas.drawRightString(tx, box_top - 5, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
+                canvas.drawRightString(tx, box_top - 20, f"BTW 21%: € {vat:,.2f}")
+                canvas.drawRightString(tx, box_top - 35, f"Totaal (excl. reiskosten): € {total:,.2f}")
+            
+                # Space before Reiskosten + Eindtotaal group
+                canvas.drawRightString(tx, box_top - 55, f"Reiskosten [1]: € {travel_total:,.2f}")
             
                 # Eindtotaal — bold, red, larger
                 canvas.setFont("Helvetica-Bold", 12)
                 canvas.setFillColor(colors.red)
-                canvas.drawRightString(tx, ty - 20, f"Eindtotaal [2]: € {final_total:,.2f}")
+                canvas.drawRightString(tx, box_top - 75, f"Eindtotaal [2]: € {final_total:,.2f}")
             
                 canvas.restoreState()
+
 
 
             def later_pages(canvas, doc_obj):
