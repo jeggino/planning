@@ -690,148 +690,8 @@ elif subpage == "Planning":
 
         st.dataframe(table_df, use_container_width=True)
 
-# ---------------------------------------------------------
-# PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
-# ---------------------------------------------------------
-elif subpage == "Monthly Earnings":
-    st.header("Monthly Earnings")
-
-    rounds = get_rounds()
-    if not rounds:
-        st.info("No rounds yet.")
-    else:
-        df = pd.DataFrame([
-            {
-                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
-                "assignment": r["assignments"]["name"] if r["assignments"] else None,
-                "type": (
-                    r["assignments"]["type"]
-                    if r["assignments"]
-                    else ("Travel" if r["travel_cost"] else None)
-                ),
-                "area": r["areas"]["name"] if r["areas"] else None,
-                "hours_worked": r["hours_worked"],
-                "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
-                "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
-                "travel_cost": r["travel_cost"]
-            }
-            for r in rounds
-        ])
-
         # ---------------------------------------------------------
-        # COMPUTE HOURS + AMOUNT
-        # ---------------------------------------------------------
-        def compute_amount(row):
-            if row["type"] == "Deskwork":
-                return (row["hours_worked"] or 0) * (row["rate"] or 0)
-            elif row["type"] == "Fieldwork":
-                return (row["hours_per_round"] or 0) * (row["rate"] or 0)
-            elif row["type"] == "Extra":
-                return (row["hours_worked"] or 0) * (row["rate"] or 0)
-            else:
-                return row["travel_cost"] or 0
-
-        df["amount"] = df.apply(compute_amount, axis=1)
-        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
-
-        # ---------------------------------------------------------
-        # MONTH SELECTION
-        # ---------------------------------------------------------
-        st.subheader("Select month(s)")
-        months = sorted(df["month"].unique())
-        selected_months = st.multiselect("Months", months, default=[months[-1]])
-
-        if not selected_months:
-            st.info("Select at least one month.")
-            st.stop()
-
-        df_month = df[df["month"].isin(selected_months)]
-
-        # ---------------------------------------------------------
-        # TOTALS
-        # ---------------------------------------------------------
-        subtotal = df_month["amount"].sum()
-        vat = subtotal * 0.21
-        total = subtotal + vat
-
-        st.metric("Subtotal", f"€ {subtotal:,.2f}")
-        st.metric("VAT 21%", f"€ {vat:,.2f}")
-        st.metric("Total", f"€ {total:,.2f}")
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # HOURS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Hours per assignment")
-
-        df_hours = df_month[df_month["type"] != "Travel"].copy()
-        df_hours["hours"] = df_hours.apply(
-            lambda r: (
-                r["hours_worked"]
-                if r["type"] in ["Deskwork", "Extra"]
-                else r["hours_per_round"]
-            ),
-            axis=1
-        )
-
-        hours_assignment = (
-            df_hours.groupby("assignment")["hours"]
-            .sum()
-            .reset_index()
-            .sort_values("hours", ascending=False)
-        )
-
-        st.dataframe(hours_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # TRAVEL COSTS TABLE
-        # ---------------------------------------------------------
-        st.subheader("Travel Costs")
-
-        df_travel = df_month[df_month["type"] == "Travel"]
-
-        if df_travel.empty:
-            st.info("No travel costs this month.")
-        else:
-            travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
-            st.dataframe(travel_table, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # EARNINGS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Total earnings per assignment")
-
-        earnings_assignment = (
-            df_month[df_month["type"] != "Travel"]
-            .groupby("assignment")["amount"]
-            .sum()
-            .reset_index()
-            .sort_values("amount", ascending=False)
-        )
-
-        st.dataframe(earnings_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # CLIENT INFO
-        # ---------------------------------------------------------
-        st.subheader("Client information (for invoice)")
-        klant_naam = st.text_input("Client name")
-        klant_adres = st.text_input("Client address")
-        klant_postcode = st.text_input("Client postcode")
-        klant_stad = st.text_input("Client city")
-
-        st.markdown("---")
-
-
-        # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT BREAKDOWN)
+        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
         
@@ -972,25 +832,59 @@ elif subpage == "Monthly Earnings":
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
             ]))
         
             table1.wrapOn(pdf, width, height)
-            table1_height = len(table1_data) * 16
+            table1_height = len(table1_data) * 15
             table1.drawOn(pdf, 70, y - table1_height)
-            y -= table1_height + 30
+            y -= table1_height + 20
+        
+            # ---------------------------------------------------------
+            # TABLE 2 — TRAVEL COSTS (PLACED HERE)
+            # ---------------------------------------------------------
+        
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(70, y, "Reiskosten")
+            y -= 20
+        
+            if travel_summary.empty:
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(70, y, "Geen reiskosten in deze periode.")
+                y -= 20
+            else:
+                travel_data = [["Gebied", "Bedrag (€)"]]
+                for _, row in travel_summary.iterrows():
+                    travel_data.append([
+                        row["area"],
+                        f"{row['travel_cost']:,.2f}"
+                    ])
+        
+                table2 = Table(travel_data, colWidths=[220, 100])
+                table2.setStyle(TableStyle([
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ]))
+        
+                table2.wrapOn(pdf, width, height)
+                table2_height = len(travel_data) * 15
+                table2.drawOn(pdf, 70, y - table2_height)
+                y -= table2_height + 30
         
             # ---------------------------------------------------------
             # TOTALS (WORK ONLY)
             # ---------------------------------------------------------
         
-            pdf.setFont("Helvetica-Bold", 12)
+            pdf.setFont("Helvetica-Bold", 11)
             pdf.drawRightString(width - 40, y, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
-            y -= 20
+            y -= 18
             pdf.drawRightString(width - 40, y, f"BTW 21%: € {vat:,.2f}")
-            y -= 20
+            y -= 18
             pdf.drawRightString(width - 40, y, f"Totaal (excl. reiskosten): € {total:,.2f}")
-            y -= 30
+            y -= 25
         
             # ---------------------------------------------------------
             # TRAVEL COSTS AFTER VAT
@@ -999,11 +893,11 @@ elif subpage == "Monthly Earnings":
             travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
         
             pdf.drawRightString(width - 40, y, f"Reiskosten [1]: € {travel_total:,.2f}")
-            y -= 20
+            y -= 18
         
             final_total = total + travel_total
-            pdf.drawRightString(width - 40, y, f"Eindtotaal: € {final_total:,.2f}")
-            y -= 40
+            pdf.drawRightString(width - 40, y, f"Eindtotaal [2]: € {final_total:,.2f}")
+            y -= 35
         
             # FOOTNOTES
             pdf.setFont("Helvetica", 8)
@@ -1012,7 +906,7 @@ elif subpage == "Monthly Earnings":
             pdf.drawString(70, y, "[2] Betalingstermijn bedraagt **14 dagen** na factuurdatum.")
         
             # ---------------------------------------------------------
-            # PAGE 2 — BREAKDOWN PER AREA AND ASSIGNMENT
+            # PAGE 2 — GROUPED LIST PER AREA
             # ---------------------------------------------------------
         
             pdf.showPage()
@@ -1039,28 +933,36 @@ elif subpage == "Monthly Earnings":
                 .reset_index()
             )
         
-            table_area_data = [["Gebied", "Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
+            pdf.setFont("Helvetica", 10)
+        
+            current_area = None
         
             for _, row in area_summary.iterrows():
-                table_area_data.append([
-                    row["area"],
-                    row["assignment"],
-                    f"{row['total_hours']:.2f}",
-                    f"{row['hourly_rate']:,.2f}",
-                    f"{row['total_amount']:,.2f}"
-                ])
+                area = row["area"]
         
-            table_area = Table(table_area_data, colWidths=[120, 140, 60, 70, 70])
-            table_area.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("ALIGN", (2, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ]))
+                if area != current_area:
+                    pdf.setFont("Helvetica-Bold", 12)
+                    pdf.drawString(70, y, f"Gebied: {area}")
+                    y -= 20
+                    current_area = area
         
-            table_area.wrapOn(pdf, width, height)
-            table_area.drawOn(pdf, 70, y - len(table_area_data) * 18)
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(90, y, f"- Opdracht: {row['assignment']}")
+                y -= 14
+                pdf.drawString(110, y, f"Uren: {row['total_hours']:.2f}")
+                y -= 14
+                pdf.drawString(110, y, f"Uurloon: € {row['hourly_rate']:,.2f}")
+                y -= 14
+                pdf.drawString(110, y, f"Bedrag: € {row['total_amount']:,.2f}")
+                y -= 20
+        
+                if y < 100:
+                    pdf.showPage()
+                    y = height - 80
+                    pdf.setFont("Helvetica-Bold", 18)
+                    pdf.drawString(70, y, "Uren en inkomsten per gebied en opdracht")
+                    y -= 40
+                    pdf.setFont("Helvetica", 10)
         
             pdf.save()
             buffer.seek(0)
@@ -1071,4 +973,5 @@ elif subpage == "Monthly Earnings":
                 file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
+
 
