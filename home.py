@@ -1152,7 +1152,7 @@ elif subpage == "Monthly Earnings":
             factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
 
             # -----------------------------------------------------
-            # PREPARE DATA FOR TABLES
+            # PREPARE DATA
             # -----------------------------------------------------
             df_assign = df_month[df_month["type"] != "Travel"].copy()
             df_assign["hours"] = df_assign.apply(
@@ -1197,7 +1197,7 @@ elif subpage == "Monthly Earnings":
             final_total = total + travel_total
 
             # -----------------------------------------------------
-            # BUILD PDF WITH PLATYPUS
+            # PDF BUILD
             # -----------------------------------------------------
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(
@@ -1211,10 +1211,9 @@ elif subpage == "Monthly Earnings":
 
             styles = getSampleStyleSheet()
             normal = styles["Normal"]
-            body = styles["BodyText"]
-
-            # Ensure no italics anywhere
             normal.italic = 0
+
+            body = styles["BodyText"]
             body.italic = 0
 
             title_style = ParagraphStyle(
@@ -1223,12 +1222,14 @@ elif subpage == "Monthly Earnings":
                 fontSize=20,
                 textColor=colors.blue,
                 alignment=2,  # right
+                italic=0
             )
 
             right_text = ParagraphStyle(
                 "right_text",
                 parent=normal,
-                alignment=2,  # right
+                alignment=2,
+                italic=0
             )
 
             bold = ParagraphStyle(
@@ -1236,32 +1237,42 @@ elif subpage == "Monthly Earnings":
                 parent=styles["Heading4"],
                 fontSize=12,
                 spaceAfter=4,
+                italic=0
             )
-            bold.italic = 0
 
-            heading2 = ParagraphStyle(
-                "heading2",
+            heading_center = ParagraphStyle(
+                "heading_center",
                 parent=styles["Heading1"],
                 fontSize=18,
-                spaceAfter=12,
+                alignment=1,  # center
+                italic=0
             )
-            heading2.italic = 0
 
-            indent_line = ParagraphStyle(
-                "indent_line",
+            indent1 = ParagraphStyle(
+                "indent1",
                 parent=normal,
                 leftIndent=15,
+                italic=0
             )
-            indent_line2 = ParagraphStyle(
-                "indent_line2",
+            indent2 = ParagraphStyle(
+                "indent2",
                 parent=normal,
                 leftIndent=30,
+                italic=0
+            )
+
+            red_total = ParagraphStyle(
+                "red_total",
+                parent=right_text,
+                textColor=colors.red,
+                fontSize=12,
+                italic=0
             )
 
             story = []
 
             # -----------------------------------------------------
-            # PAGE 1 — HEADER
+            # PAGE 1 HEADER
             # -----------------------------------------------------
             story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
             story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", right_text))
@@ -1287,7 +1298,9 @@ elif subpage == "Monthly Earnings":
             story.append(Paragraph(f"IBAN: {eigen_iban}", normal))
             story.append(Spacer(1, 18))
 
-            # WORK SUMMARY TABLE (LEFT ALIGNED)
+            # -----------------------------------------------------
+            # TABLE 1 — WORK SUMMARY
+            # -----------------------------------------------------
             story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
             story.append(Spacer(1, 6))
 
@@ -1311,7 +1324,9 @@ elif subpage == "Monthly Earnings":
             story.append(table1)
             story.append(Spacer(1, 18))
 
-            # TRAVEL COSTS TABLE (LEFT ALIGNED)
+            # -----------------------------------------------------
+            # TABLE 2 — TRAVEL COSTS
+            # -----------------------------------------------------
             story.append(Paragraph("<b>Reiskosten</b>", bold))
             story.append(Spacer(1, 6))
 
@@ -1337,61 +1352,60 @@ elif subpage == "Monthly Earnings":
 
             story.append(Spacer(1, 18))
 
-            # TOTALS
-            story.append(Paragraph(f"<b>Subtotaal werkzaamheden:</b> € {subtotal:,.2f}", normal))
-            story.append(Paragraph(f"<b>BTW 21%:</b> € {vat:,.2f}", normal))
-            story.append(Paragraph(f"<b>Totaal (excl. reiskosten):</b> € {total:,.2f}", normal))
+            # -----------------------------------------------------
+            # TOTALS (RIGHT SIDE)
+            # -----------------------------------------------------
+            story.append(Paragraph(f"<b>Subtotaal werkzaamheden:</b> € {subtotal:,.2f}", right_text))
+            story.append(Paragraph(f"<b>BTW 21%:</b> € {vat:,.2f}", right_text))
+            story.append(Paragraph(f"<b>Totaal (excl. reiskosten):</b> € {total:,.2f}", right_text))
             story.append(Spacer(1, 12))
 
-            story.append(Paragraph(f"<b>Reiskosten [1]:</b> € {travel_total:,.2f}", normal))
-            story.append(Paragraph(f"<b>Eindtotaal [2]:</b> € {final_total:,.2f}", normal))
+            story.append(Paragraph(f"<b>Reiskosten [1]:</b> € {travel_total:,.2f}", right_text))
+            story.append(Paragraph(f"<b>Eindtotaal [2]:</b> € {final_total:,.2f}", red_total))
             story.append(Spacer(1, 24))
 
+            # -----------------------------------------------------
             # PAGE BREAK
+            # -----------------------------------------------------
             story.append(PageBreak())
 
             # -----------------------------------------------------
-            # PAGE 2 — UREN EN INKOMSTEN PER GEBIED EN OPDRACHT
+            # PAGE 2 — AREA SUMMARY
             # -----------------------------------------------------
-            story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading2))
+            story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading_center))
             story.append(Spacer(1, 12))
 
             current_area = None
             for _, row in area_summary.iterrows():
                 area = row["area"]
+
                 if area != current_area:
-                    story.append(Spacer(1, 8))
+                    story.append(PageBreak())  # force clean break
                     story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
                     story.append(Spacer(1, 6))
                     current_area = area
 
-                # A3 style with indentation
-                story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent_line))
-                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent_line2))
-                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent_line2))
-                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent_line2))
+                story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent1))
+                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent2))
+                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent2))
+                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent2))
                 story.append(Spacer(1, 10))
 
             # -----------------------------------------------------
-            # FOOTER ON FIRST PAGE ONLY (F1)
+            # FOOTER ON PAGE 1 ONLY
             # -----------------------------------------------------
             def first_page(canvas, doc_obj):
                 canvas.saveState()
-                footer_text1 = "[1] Reiskosten zijn vrijgesteld van BTW."
-                footer_text2 = "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum."
                 canvas.setFont("Helvetica", 7)
                 x = doc_obj.leftMargin
                 y = 12 * mm
-                canvas.drawString(x, y + 8, footer_text1)
-                canvas.drawString(x, y, footer_text2)
+                canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
+                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
                 canvas.restoreState()
 
             def later_pages(canvas, doc_obj):
-                # No footer on later pages (for now)
-                canvas.saveState()
-                canvas.restoreState()
+                pass
 
-            # BUILD PDF
             doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
             buffer.seek(0)
 
