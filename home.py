@@ -831,7 +831,7 @@ elif subpage == "Monthly Earnings":
 
 
         # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE, COMPACT, GROUPED TABLES)
+        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA BREAKDOWN)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
         
@@ -952,10 +952,10 @@ elif subpage == "Monthly Earnings":
             # TABLE 1 — WORK SUMMARY
             # ---------------------------------------------------------
         
-            y -= 6  # move title slightly up
+            y -= 10
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(70, y, "Overzicht werkzaamheden")
-            y -= 30  # more space before table
+            y -= 30
         
             table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
         
@@ -982,49 +982,81 @@ elif subpage == "Monthly Earnings":
             y -= table1_height + 30
         
             # ---------------------------------------------------------
-            # TABLE 2 — TRAVEL COSTS
+            # TOTALS (WORK ONLY)
             # ---------------------------------------------------------
         
             pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Reiskosten")
-            y -= 20
-        
-            if travel_summary.empty:
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(70, y, "Geen reiskosten in deze periode.")
-                y -= 20
-            else:
-                travel_data = [["Gebied", "Bedrag (€)"]]
-                for _, row in travel_summary.iterrows():
-                    travel_data.append([
-                        row["area"],
-                        f"{row['travel_cost']:,.2f}"
-                    ])
-        
-                table2 = Table(travel_data, colWidths=[220, 100])
-                table2.setStyle(TableStyle([
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ]))
-        
-                table2.wrapOn(pdf, width, height)
-                table2_height = len(travel_data) * 16
-                table2.drawOn(pdf, 70, y - table2_height)
-                y -= table2_height + 30
-        
-            # ---------------------------------------------------------
-            # TOTALS
-            # ---------------------------------------------------------
-        
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawRightString(width - 40, y, f"Subtotaal: € {subtotal:,.2f}")
+            pdf.drawRightString(width - 40, y, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
             y -= 20
             pdf.drawRightString(width - 40, y, f"BTW 21%: € {vat:,.2f}")
             y -= 20
-            pdf.drawRightString(width - 40, y, f"Totaal: € {total:,.2f}")
+            pdf.drawRightString(width - 40, y, f"Totaal (excl. reiskosten): € {total:,.2f}")
+            y -= 30
+        
+            # ---------------------------------------------------------
+            # TRAVEL COSTS ADDED AFTER VAT
+            # ---------------------------------------------------------
+        
+            travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
+        
+            pdf.drawRightString(width - 40, y, f"Reiskosten [1]: € {travel_total:,.2f}")
+            y -= 20
+        
+            final_total = total + travel_total
+            pdf.drawRightString(width - 40, y, f"Eindtotaal: € {final_total:,.2f}")
+            y -= 40
+        
+            # FOOTNOTE
+            pdf.setFont("Helvetica", 8)
+            pdf.drawString(70, y, "[1] Reiskosten zijn vrijgesteld van BTW.")
+        
+            # ---------------------------------------------------------
+            # PAGE 2 — BREAKDOWN PER AREA
+            # ---------------------------------------------------------
+        
+            pdf.showPage()
+            y = height - 80
+        
+            pdf.setFont("Helvetica-Bold", 18)
+            pdf.drawString(70, y, "Uren en inkomsten per gebied")
+            y -= 40
+        
+            # Compute hours per area
+            df_area = df_month[df_month["type"] != "Travel"].copy()
+            df_area["hours"] = df_area.apply(
+                lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+                axis=1
+            )
+        
+            area_summary = (
+                df_area.groupby("area")
+                .agg(
+                    total_hours=("hours", "sum"),
+                    total_amount=("amount", "sum")
+                )
+                .reset_index()
+            )
+        
+            table_area_data = [["Gebied", "Uren", "Bedrag (€)"]]
+        
+            for _, row in area_summary.iterrows():
+                table_area_data.append([
+                    row["area"],
+                    f"{row['total_hours']:.2f}",
+                    f"{row['total_amount']:,.2f}"
+                ])
+        
+            table_area = Table(table_area_data, colWidths=[200, 80, 100])
+            table_area.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ]))
+        
+            table_area.wrapOn(pdf, width, height)
+            table_area.drawOn(pdf, 70, y - len(table_area_data) * 18)
         
             pdf.save()
             buffer.seek(0)
@@ -1035,4 +1067,3 @@ elif subpage == "Monthly Earnings":
                 file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
-
