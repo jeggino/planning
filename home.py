@@ -956,7 +956,7 @@ elif subpage == "Monthly Earnings":
             # TABLE 1 — WORK SUMMARY
             # ---------------------------------------------------------
         
-            y -= 10
+            y -= 6
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(70, y, "Overzicht werkzaamheden")
             y -= 30
