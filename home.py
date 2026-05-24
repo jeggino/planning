@@ -1217,11 +1217,21 @@ elif subpage == "Monthly Earnings":
             normal = styles["Normal"]
             body = styles["BodyText"]
 
+            # Ensure no italics anywhere
+            normal.italic = 0
+            body.italic = 0
+
             title_style = ParagraphStyle(
                 "title_style",
                 parent=styles["Heading1"],
                 fontSize=20,
                 textColor=colors.blue,
+                alignment=2,  # right
+            )
+
+            right_text = ParagraphStyle(
+                "right_text",
+                parent=normal,
                 alignment=2,  # right
             )
 
@@ -1231,6 +1241,26 @@ elif subpage == "Monthly Earnings":
                 fontSize=12,
                 spaceAfter=4,
             )
+            bold.italic = 0
+
+            heading2 = ParagraphStyle(
+                "heading2",
+                parent=styles["Heading1"],
+                fontSize=18,
+                spaceAfter=12,
+            )
+            heading2.italic = 0
+
+            indent_line = ParagraphStyle(
+                "indent_line",
+                parent=normal,
+                leftIndent=15,
+            )
+            indent_line2 = ParagraphStyle(
+                "indent_line2",
+                parent=normal,
+                leftIndent=30,
+            )
 
             story = []
 
@@ -1238,8 +1268,8 @@ elif subpage == "Monthly Earnings":
             # PAGE 1 — HEADER
             # -----------------------------------------------------
             story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
-            story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", normal))
-            story.append(Paragraph(f"Datum: {factuurdatum}", normal))
+            story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", right_text))
+            story.append(Paragraph(f"Datum: {factuurdatum}", right_text))
             story.append(Spacer(1, 12))
 
             # CLIENT
@@ -1261,7 +1291,7 @@ elif subpage == "Monthly Earnings":
             story.append(Paragraph(f"IBAN: {eigen_iban}", normal))
             story.append(Spacer(1, 18))
 
-            # WORK SUMMARY TABLE
+            # WORK SUMMARY TABLE (LEFT ALIGNED)
             story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
             story.append(Spacer(1, 6))
 
@@ -1274,7 +1304,7 @@ elif subpage == "Monthly Earnings":
                     f"{row['total_amount']:,.2f}",
                 ])
 
-            table1 = Table(table1_data, colWidths=[180, 60, 80, 80])
+            table1 = Table(table1_data, colWidths=[180, 60, 80, 80], hAlign="LEFT")
             table1.setStyle(TableStyle([
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -1285,7 +1315,7 @@ elif subpage == "Monthly Earnings":
             story.append(table1)
             story.append(Spacer(1, 18))
 
-            # TRAVEL COSTS TABLE
+            # TRAVEL COSTS TABLE (LEFT ALIGNED)
             story.append(Paragraph("<b>Reiskosten</b>", bold))
             story.append(Spacer(1, 6))
 
@@ -1299,7 +1329,7 @@ elif subpage == "Monthly Earnings":
                         f"{row['travel_cost']:,.2f}",
                     ])
 
-                table2 = Table(travel_data, colWidths=[220, 100])
+                table2 = Table(travel_data, colWidths=[220, 100], hAlign="LEFT")
                 table2.setStyle(TableStyle([
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -1319,11 +1349,7 @@ elif subpage == "Monthly Earnings":
 
             story.append(Paragraph(f"<b>Reiskosten [1]:</b> € {travel_total:,.2f}", normal))
             story.append(Paragraph(f"<b>Eindtotaal [2]:</b> € {final_total:,.2f}", normal))
-            story.append(Spacer(1, 18))
-
-            # FOOTNOTES
-            story.append(Paragraph("[1] Reiskosten zijn vrijgesteld van BTW.", body))
-            story.append(Paragraph("[2] Betalingstermijn bedraagt <b>14 dagen</b> na factuurdatum.", body))
+            story.append(Spacer(1, 24))
 
             # PAGE BREAK
             story.append(PageBreak())
@@ -1331,41 +1357,8 @@ elif subpage == "Monthly Earnings":
             # -----------------------------------------------------
             # PAGE 2 — UREN EN INKOMSTEN PER GEBIED EN OPDRACHT
             # -----------------------------------------------------
-            heading2 = ParagraphStyle(
-                "heading2",
-                parent=styles["Heading1"],
-                fontSize=18,
-                spaceAfter=12,
-            )
-
             story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading2))
             story.append(Spacer(1, 12))
 
-            current_area = None
-            for _, row in area_summary.iterrows():
-                area = row["area"]
-                if area != current_area:
-                    # New area header
-                    story.append(Spacer(1, 8))
-                    story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
-                    story.append(Spacer(1, 6))
-                    current_area = area
 
-                # A3 style: spaced, readable block per assignment
-                story.append(Paragraph(f"- Opdracht: {row['assignment']}", normal))
-                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", normal))
-                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", normal))
-                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", normal))
-                story.append(Spacer(1, 10))
-
-            # BUILD PDF
-            doc.build(story)
-            buffer.seek(0)
-
-            st.download_button(
-                "Download PDF",
-                buffer,
-                file_name=f"factuur_{factuurnummer}.pdf",
-                mime="application/pdf",
-            )
 
