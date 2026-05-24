@@ -1245,7 +1245,8 @@ elif subpage == "Monthly Earnings":
                 parent=styles["Heading1"],
                 fontSize=18,
                 alignment=1,  # center
-                italic=0
+                italic=0,
+                textColor=colors.green,
             )
 
             indent1 = ParagraphStyle(
@@ -1391,11 +1392,9 @@ elif subpage == "Monthly Earnings":
                 x = doc_obj.leftMargin
                 y = 12 * mm
                 canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
-                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt ")
                 canvas.setFont("Helvetica-Bold", 7)
-                canvas.drawString(x + 125, y, "14 dagen")
+                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
                 canvas.setFont("Helvetica", 7)
-                canvas.drawString(x + 165, y, " na factuurdatum.")
             
                 # ---------------------------------------------------------
                 # TOTALS BOX (shaded + horizontal line)
@@ -1406,14 +1405,7 @@ elif subpage == "Monthly Earnings":
                 box_left = doc_obj.leftMargin + 60
                 box_right = doc_obj.leftMargin + doc_obj.width
             
-                # Shaded background
-                canvas.setFillColorRGB(0.95, 0.95, 0.95)
-                canvas.rect(box_left, box_bottom, box_right - box_left, box_top - box_bottom, fill=1, stroke=0)
-            
-                # Horizontal line above totals
-                canvas.setStrokeColor(colors.grey)
-                canvas.setLineWidth(0.5)
-                canvas.line(box_left, box_top + 5, box_right, box_top + 5)
+
             
                 # ---------------------------------------------------------
                 # TOTALS TEXT (right aligned)
