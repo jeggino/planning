@@ -1,827 +1,3 @@
-
-# import streamlit as st
-# from supabase import create_client
-# import pandas as pd
-# from datetime import date, datetime
-# import altair as alt
-# from reportlab.pdfgen import canvas
-# from reportlab.lib.pagesizes import A4
-# import io
-
-# # ---------------------------------------------------------
-# # PASSWORD PROTECTION
-# # ---------------------------------------------------------
-# def check_password():
-#     if "authenticated" not in st.session_state:
-#         st.session_state["authenticated"] = False
-#     if "password_input" not in st.session_state:
-#         st.session_state["password_input"] = ""
-
-#     if not st.session_state["authenticated"]:
-#         st.subheader("Login")
-
-#         st.session_state["password_input"] = st.text_input(
-#             "Enter password",
-#             type="password"
-#         )
-
-#         if st.button("Login"):
-#             if st.session_state["password_input"] == st.secrets["PASSWORD"]:
-#                 st.session_state["authenticated"] = True
-#                 st.success("Access granted")
-#             else:
-#                 st.error("Incorrect password")
-#                 st.session_state["authenticated"] = False
-
-#         if not st.session_state["authenticated"]:
-#             st.stop()
-
-# check_password()
-
-# # ---------------------------------------------------------
-# # DARK MODE CSS
-# # ---------------------------------------------------------
-# dark_css = """
-# <style>
-# body {
-#     background-color: #0e1117;
-#     color: #fafafa;
-# }
-# </style>
-# """
-# st.markdown(dark_css, unsafe_allow_html=True)
-
-# # ---------------------------------------------------------
-# # Supabase client
-# # ---------------------------------------------------------
-# @st.cache_resource
-# def get_supabase():
-#     return create_client(
-#         st.secrets["SUPABASE_URL"],
-#         st.secrets["SUPABASE_KEY"]
-#     )
-
-# supabase = get_supabase()
-
-# # ---------------------------------------------------------
-# # Cached fetch functions
-# # ---------------------------------------------------------
-# @st.cache_data(ttl=3)
-# def get_assignments():
-#     return supabase.table("assignments").select("*").order("created_at").execute().data
-
-# @st.cache_data(ttl=3)
-# def get_areas():
-#     return supabase.table("areas").select("*").order("created_at").execute().data
-
-# @st.cache_data(ttl=3)
-# def get_rounds():
-#     return supabase.table("rounds").select(
-#         "*, assignments(name, type, hours_per_round, min_days_between_rounds, hourly_rate), areas(name, description)"
-#     ).order("work_date").execute().data
-
-# def refresh():
-#     st.cache_data.clear()
-
-# # ---------------------------------------------------------
-# # Sidebar Navigation
-# # ---------------------------------------------------------
-# st.set_page_config(page_title="Work Planner", layout="wide")
-# st.sidebar.title("Navigation")
-
-# menu = st.sidebar.selectbox(
-#     "Choose section",
-#     [
-#         "Work Setup",
-#         "Work Activity",
-#         "Monthly Earnings"
-#     ]
-# )
-
-# subpage = None
-
-# if menu == "Work Setup":
-#     subpage = st.sidebar.radio("Setup", ["Assignments", "Areas"])
-
-# elif menu == "Work Activity":
-#     subpage = st.sidebar.radio("Activity", ["Log Work Day", "Rounds Overview & Plot"])
-
-# else:
-#     subpage = "Monthly Earnings"
-
-# st.title("Work Planner")
-
-# # ---------------------------------------------------------
-# # PAGE — ASSIGNMENTS
-# # ---------------------------------------------------------
-# if subpage == "Assignments":
-#     st.header("Assignment Setup")
-
-#     assignments = get_assignments()
-
-#     mode = st.radio("Mode", ["Create new", "Edit existing"])
-
-#     selected = None
-#     if mode == "Edit existing" and assignments:
-#         selected = st.selectbox(
-#             "Select assignment",
-#             assignments,
-#             format_func=lambda a: f"{a['name']} ({a['type']})"
-#         )
-
-#     assignment_type = st.radio(
-#         "Type of assignment",
-#         ["Deskwork", "Fieldwork"],
-#         index=0 if not selected else (0 if selected["type"] == "Deskwork" else 1)
-#     )
-
-#     name = st.text_input("Assignment name", value=selected["name"] if selected else "")
-
-#     if assignment_type == "Deskwork":
-#         hourly_rate = st.number_input(
-#             "Hourly rate (€)",
-#             value=float(selected["hourly_rate"]) if selected else 0.0
-#         )
-#         hours_per_round = None
-#         min_days = None
-#     else:
-#         hours_per_round = st.number_input(
-#             "Hours per round",
-#             value=float(selected["hours_per_round"]) if selected else 0.0
-#         )
-#         min_days = st.number_input(
-#             "Minimum days between rounds",
-#             value=int(selected["min_days_between_rounds"]) if selected else 0
-#         )
-#         hourly_rate = st.number_input(
-#             "Hourly rate (€)",
-#             value=float(selected["hourly_rate"]) if selected else 0.0
-#         )
-
-#     if st.button("Save assignment"):
-#         data = {
-#             "name": name,
-#             "type": assignment_type,
-#             "hourly_rate": hourly_rate,
-#             "hours_per_round": hours_per_round if assignment_type == "Fieldwork" else None,
-#             "min_days_between_rounds": min_days if assignment_type == "Fieldwork" else None,
-#         }
-
-#         if selected:
-#             supabase.table("assignments").update(data).eq("id", selected["id"]).execute()
-#             st.success("Assignment updated.")
-#         else:
-#             supabase.table("assignments").insert(data).execute()
-#             st.success("Assignment created.")
-
-#         refresh()
-
-#     st.subheader("All assignments")
-#     if assignments:
-#         df_a = pd.DataFrame(assignments).drop(columns=["id", "created_at"], errors="ignore")
-#         st.dataframe(df_a, use_container_width=True)
-
-#     if assignments:
-#         del_sel = st.selectbox("Delete assignment", ["None"] + [f"{a['name']} ({a['type']})" for a in assignments])
-#         if del_sel != "None":
-#             if st.button("Confirm delete assignment"):
-#                 a_id = next(a["id"] for a in assignments if f"{a['name']} ({a['type']})" == del_sel)
-#                 supabase.table("assignments").delete().eq("id", a_id).execute()
-#                 st.warning("Assignment deleted.")
-#                 refresh()
-
-# # ---------------------------------------------------------
-# # PAGE — AREAS
-# # ---------------------------------------------------------
-# elif subpage == "Areas":
-#     st.header("Area Setup")
-
-#     areas = get_areas()
-
-#     mode = st.radio("Mode", ["Create new", "Edit existing"])
-
-#     selected = None
-#     if mode == "Edit existing" and areas:
-#         selected = st.selectbox(
-#             "Select area",
-#             areas,
-#             format_func=lambda a: a["name"]
-#         )
-
-#     name = st.text_input("Area name", value=selected["name"] if selected else "")
-#     desc = st.text_area("Description", value=selected["description"] if selected else "")
-
-#     if st.button("Save area"):
-#         data = {"name": name, "description": desc}
-
-#         if selected:
-#             supabase.table("areas").update(data).eq("id", selected["id"]).execute()
-#             st.success("Area updated.")
-#         else:
-#             supabase.table("areas").insert(data).execute()
-#             st.success("Area created.")
-
-#         refresh()
-
-#     st.subheader("All areas")
-#     if areas:
-#         df_ar = pd.DataFrame(areas).drop(columns=["id", "created_at"], errors="ignore")
-#         st.dataframe(df_ar, use_container_width=True)
-
-#     if areas:
-#         del_sel = st.selectbox("Delete area", ["None"] + [a["name"] for a in areas])
-#         if del_sel != "None":
-#             if st.button("Confirm delete area"):
-#                 a_id = next(a["id"] for a in areas if a["name"] == del_sel)
-#                 supabase.table("areas").delete().eq("id", a_id).execute()
-#                 st.warning("Area deleted.")
-#                 refresh()
-
-# # ---------------------------------------------------------
-# # PAGE — LOG WORK DAY (UPDATED WITH TRAVEL COSTS)
-# # ---------------------------------------------------------
-# elif subpage == "Log Work Day":
-#     st.header("Log a Day of Work")
-
-#     assignments = get_assignments()
-#     areas = get_areas()
-
-#     work_date = st.date_input("Date", value=date.today())
-
-#     work_type = st.radio("Type of work", ["Deskwork", "Fieldwork", "Travel Costs"])
-
-#     # -------------------------------
-#     # DESKWORK
-#     # -------------------------------
-#     if work_type == "Deskwork":
-#         if not assignments:
-#             st.warning("You must create assignments first.")
-#             st.stop()
-
-#         filtered = [a for a in assignments if a["type"] == "Deskwork"]
-
-#         assignment = st.selectbox(
-#             "Assignment",
-#             filtered,
-#             format_func=lambda a: a["name"]
-#         )
-
-#         hours_worked = st.number_input("Hours worked", min_value=0.0, step=0.5)
-
-#         if st.button("Save deskwork"):
-#             supabase.table("rounds").insert({
-#                 "assignment_id": assignment["id"],
-#                 "area_id": None,
-#                 "work_date": work_date.isoformat(),
-#                 "hours_worked": hours_worked,
-#                 "travel_cost": None
-#             }).execute()
-#             st.success("Deskwork saved.")
-#             refresh()
-
-#     # -------------------------------
-#     # FIELDWORK
-#     # -------------------------------
-#     elif work_type == "Fieldwork":
-#         if not assignments:
-#             st.warning("You must create assignments first.")
-#             st.stop()
-
-#         filtered = [a for a in assignments if a["type"] == "Fieldwork"]
-
-#         assignment = st.selectbox(
-#             "Assignment",
-#             filtered,
-#             format_func=lambda a: a["name"]
-#         )
-
-#         if not areas:
-#             st.warning("You must create areas first.")
-#             st.stop()
-
-#         area = st.selectbox(
-#             "Area",
-#             areas,
-#             format_func=lambda a: a["name"]
-#         )
-
-#         rounds = get_rounds()
-#         relevant = [
-#             r for r in rounds
-#             if r["assignment_id"] == assignment["id"] and r["area_id"] == area["id"]
-#         ]
-
-#         if st.button("Save fieldwork"):
-#             if assignment["min_days_between_rounds"] is not None and relevant:
-#                 last_date = max(datetime.strptime(r["work_date"], "%Y-%m-%d").date() for r in relevant)
-#                 diff = (work_date - last_date).days
-
-#                 if diff < assignment["min_days_between_rounds"]:
-#                     st.error(
-#                         f"Only {diff} days since last round. Minimum required: {assignment['min_days_between_rounds']}."
-#                     )
-#                     st.stop()
-
-#             supabase.table("rounds").insert({
-#                 "assignment_id": assignment["id"],
-#                 "area_id": area["id"],
-#                 "work_date": work_date.isoformat(),
-#                 "hours_worked": None,
-#                 "travel_cost": None
-#             }).execute()
-#             st.success("Fieldwork saved.")
-#             refresh()
-
-#     # -------------------------------
-#     # TRAVEL COSTS (NEW)
-#     # -------------------------------
-#     else:
-#         if not areas:
-#             st.warning("You must create areas first.")
-#             st.stop()
-
-#         area = st.selectbox(
-#             "Area",
-#             areas,
-#             format_func=lambda a: a["name"]
-#         )
-
-#         travel_cost = st.number_input("Travel cost (€)", min_value=0.0, step=0.5)
-
-#         if st.button("Save travel cost"):
-#             supabase.table("rounds").insert({
-#                 "assignment_id": None,
-#                 "area_id": area["id"],
-#                 "work_date": work_date.isoformat(),
-#                 "hours_worked": None,
-#                 "travel_cost": travel_cost
-#             }).execute()
-#             st.success("Travel cost saved.")
-#             refresh()
-
-# # ---------------------------------------------------------
-# # PAGE — ROUNDS OVERVIEW & PLOT (UPDATED WITH TRAVEL COSTS)
-# # ---------------------------------------------------------
-# elif subpage == "Rounds Overview & Plot":
-#     st.header("Work Activity Overview")
-
-#     rounds = get_rounds()
-#     if not rounds:
-#         st.info("No rounds logged yet.")
-#     else:
-#         df = pd.DataFrame([
-#             {
-#                 "id": r["id"],
-#                 "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
-#                 "assignment": r["assignments"]["name"] if r["assignments"] else None,
-#                 "type": r["assignments"]["type"] if r["assignments"] else ("Travel" if r["travel_cost"] else None),
-#                 "area": r["areas"]["name"] if r["areas"] else None,
-#                 "hours_worked": r["hours_worked"],
-#                 "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
-#                 "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
-#                 "travel_cost": r["travel_cost"]
-#             }
-#             for r in rounds
-#         ])
-
-#         df["date"] = pd.to_datetime(df["date"])
-
-#         # -------------------------------
-#         # FILTERS
-#         # -------------------------------
-#         st.subheader("Filters")
-
-#         col1, col2 = st.columns(2)
-
-#         with col1:
-#             assignment_filter = st.multiselect(
-#                 "Filter by assignment",
-#                 df["assignment"].dropna().unique()
-#             )
-
-#         with col2:
-#             area_filter = st.multiselect(
-#                 "Filter by area",
-#                 df["area"].dropna().unique()
-#             )
-
-#         df_filtered = df.copy()
-
-#         if assignment_filter:
-#             df_filtered = df_filtered[df_filtered["assignment"].isin(assignment_filter)]
-
-#         if area_filter:
-#             df_filtered = df_filtered[df_filtered["area"].isin(area_filter)]
-
-#         # -------------------------------
-#         # DESKWORK PLOT
-#         # -------------------------------
-#         st.subheader("Deskwork Activity")
-
-#         df_desk = df_filtered[df_filtered["type"] == "Deskwork"]
-
-#         if df_desk.empty:
-#             st.info("No deskwork logged.")
-#         else:
-#             chart_desk = (
-#                 alt.Chart(df_desk)
-#                 .mark_circle(size=150)
-#                 .encode(
-#                     x=alt.X("date:T", title="Date"),
-#                     y=alt.Y("assignment:N", title="Assignment"),
-#                     color=alt.Color("assignment:N", scale=alt.Scale(scheme="category10")),
-#                     tooltip=["date:T", "assignment:N", "hours_worked:Q"]
-#                 )
-#                 .interactive()
-#                 .properties(height=350)
-#             )
-#             st.altair_chart(chart_desk, use_container_width=True)
-
-#         st.markdown("---")
-
-#         # -------------------------------
-#         # FIELDWORK PLOT
-#         # -------------------------------
-#         st.subheader("Fieldwork Activity")
-
-#         df_field = df_filtered[df_filtered["type"] == "Fieldwork"]
-
-#         if df_field.empty:
-#             st.info("No fieldwork logged.")
-#         else:
-#             chart_field = (
-#                 alt.Chart(df_field)
-#                 .mark_circle(size=150)
-#                 .encode(
-#                     x=alt.X("date:T", title="Date"),
-#                     y=alt.Y("area:N", title="Area"),
-#                     color=alt.Color("assignment:N", scale=alt.Scale(scheme="paired")),
-#                     tooltip=["date:T", "assignment:N", "area:N"]
-#                 )
-#                 .interactive()
-#                 .properties(height=350)
-#             )
-#             st.altair_chart(chart_field, use_container_width=True)
-
-#         st.markdown("---")
-
-#         # -------------------------------
-#         # TRAVEL COSTS PLOT (NEW)
-#         # -------------------------------
-#         st.subheader("Travel Costs Activity")
-
-#         df_travel = df_filtered[df_filtered["travel_cost"].notna()]
-
-#         if df_travel.empty:
-#             st.info("No travel costs logged.")
-#         else:
-#             chart_travel = (
-#                 alt.Chart(df_travel)
-#                 .mark_square(size=200, color="orange")
-#                 .encode(
-#                     x=alt.X("date:T", title="Date"),
-#                     y=alt.Y("area:N", title="Area"),
-#                     tooltip=["date:T", "area:N", "travel_cost:Q"]
-#                 )
-#                 .interactive()
-#                 .properties(height=350)
-#             )
-#             st.altair_chart(chart_travel, use_container_width=True)
-
-#         st.markdown("---")
-
-#         # -------------------------------
-#         # EDIT / DELETE SECTION
-#         # -------------------------------
-#         st.subheader("Edit or Delete a Round")
-
-#         labels = [
-#             f"{row['date'].date()} — "
-#             f"{row['assignment'] if row['assignment'] else 'Travel'} "
-#             f"({row['type'] if row['type'] else 'Travel'})"
-#             for _, row in df.iterrows()
-#         ]
-
-#         selected_label = st.selectbox("Select round", labels)
-#         idx = labels.index(selected_label)
-#         row = df.iloc[idx]
-
-#         new_date = st.date_input("New date", value=row["date"], key="edit_date")
-
-#         if row["type"] == "Deskwork":
-#             new_hours = st.number_input(
-#                 "New hours worked",
-#                 value=float(row["hours_worked"] or 0.0),
-#                 key="edit_hours"
-#             )
-#             new_travel = None
-
-#         elif row["type"] == "Fieldwork":
-#             new_hours = None
-#             new_travel = None
-
-#         else:  # Travel
-#             new_hours = None
-#             new_travel = st.number_input(
-#                 "New travel cost (€)",
-#                 value=float(row["travel_cost"] or 0.0),
-#                 key="edit_travel"
-#             )
-
-#         col1, col2 = st.columns(2)
-#         with col1:
-#             if st.button("Save changes"):
-#                 update_data = {"work_date": new_date.isoformat()}
-
-#                 if row["type"] == "Deskwork":
-#                     update_data["hours_worked"] = new_hours
-
-#                 if row["type"] == "Travel":
-#                     update_data["travel_cost"] = new_travel
-
-#                 supabase.table("rounds").update(update_data).eq("id", row["id"]).execute()
-#                 st.success("Round updated.")
-#                 refresh()
-
-#         with col2:
-#             if st.button("Delete round"):
-#                 supabase.table("rounds").delete().eq("id", row["id"]).execute()
-#                 st.warning("Round deleted.")
-#                 refresh()
-
-# # ---------------------------------------------------------
-# # PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
-# # ---------------------------------------------------------
-# elif subpage == "Monthly Earnings":
-#     st.header("Monthly Earnings")
-
-#     rounds = get_rounds()
-#     if not rounds:
-#         st.info("No rounds yet.")
-#     else:
-#         df = pd.DataFrame([
-#             {
-#                 "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
-#                 "assignment": r["assignments"]["name"] if r["assignments"] else None,
-#                 "type": r["assignments"]["type"] if r["assignments"] else ("Travel" if r["travel_cost"] else None),
-#                 "area": r["areas"]["name"] if r["areas"] else None,
-#                 "hours_worked": r["hours_worked"],
-#                 "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
-#                 "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
-#                 "travel_cost": r["travel_cost"]
-#             }
-#             for r in rounds
-#         ])
-
-#         # ---------------------------------------------------------
-#         # COMPUTE HOURS + AMOUNT
-#         # ---------------------------------------------------------
-#         def compute_amount(row):
-#             if row["type"] == "Deskwork":
-#                 return (row["hours_worked"] or 0) * (row["rate"] or 0)
-#             elif row["type"] == "Fieldwork":
-#                 return (row["hours_per_round"] or 0) * (row["rate"] or 0)
-#             else:
-#                 return row["travel_cost"] or 0
-
-#         df["amount"] = df.apply(compute_amount, axis=1)
-#         df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
-
-#         # ---------------------------------------------------------
-#         # MONTH SELECTION
-#         # ---------------------------------------------------------
-#         st.subheader("Select month(s)")
-#         months = sorted(df["month"].unique())
-#         selected_months = st.multiselect("Months", months, default=[months[-1]])
-
-#         if not selected_months:
-#             st.info("Select at least one month.")
-#             st.stop()
-
-#         df_month = df[df["month"].isin(selected_months)]
-
-#         # ---------------------------------------------------------
-#         # TOTALS
-#         # ---------------------------------------------------------
-#         subtotal = df_month["amount"].sum()
-#         vat = subtotal * 0.21
-#         total = subtotal + vat
-
-#         st.metric("Subtotal", f"€ {subtotal:,.2f}")
-#         st.metric("VAT 21%", f"€ {vat:,.2f}")
-#         st.metric("Total", f"€ {total:,.2f}")
-
-#         st.markdown("---")
-
-#         # ---------------------------------------------------------
-#         # HOURS PER ASSIGNMENT
-#         # ---------------------------------------------------------
-#         st.subheader("Hours per assignment")
-
-#         df_hours = df_month[df_month["type"] != "Travel"].copy()
-#         df_hours["hours"] = df_hours.apply(
-#             lambda r: r["hours_worked"] if r["type"] == "Deskwork" else r["hours_per_round"],
-#             axis=1
-#         )
-
-#         hours_assignment = (
-#             df_hours.groupby("assignment")["hours"]
-#             .sum()
-#             .reset_index()
-#             .sort_values("hours", ascending=False)
-#         )
-
-#         st.dataframe(hours_assignment, use_container_width=True)
-
-#         st.markdown("---")
-
-#         # ---------------------------------------------------------
-#         # TRAVEL COSTS TABLE
-#         # ---------------------------------------------------------
-#         st.subheader("Travel Costs")
-
-#         df_travel = df_month[df_month["type"] == "Travel"]
-
-#         if df_travel.empty:
-#             st.info("No travel costs this month.")
-#         else:
-#             travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
-#             st.dataframe(travel_table, use_container_width=True)
-
-#         st.markdown("---")
-
-#         # ---------------------------------------------------------
-#         # EARNINGS PER ASSIGNMENT
-#         # ---------------------------------------------------------
-#         st.subheader("Total earnings per assignment")
-
-#         earnings_assignment = (
-#             df_month[df_month["type"] != "Travel"]
-#             .groupby("assignment")["amount"]
-#             .sum()
-#             .reset_index()
-#             .sort_values("amount", ascending=False)
-#         )
-
-#         st.dataframe(earnings_assignment, use_container_width=True)
-
-#         st.markdown("---")
-
-#         # ---------------------------------------------------------
-#         # CLIENT INFO
-#         # ---------------------------------------------------------
-#         st.subheader("Client information (for invoice)")
-#         klant_naam = st.text_input("Client name")
-#         klant_adres = st.text_input("Client address")
-#         klant_postcode = st.text_input("Client postcode")
-#         klant_stad = st.text_input("Client city")
-
-#         st.markdown("---")
-
-#         # ---------------------------------------------------------
-#         # PDF EXPORT (UPDATED WITH TRAVEL COSTS)
-#         # ---------------------------------------------------------
-#         st.subheader("Export invoice as PDF")
-
-#         if st.button("Generate PDF"):
-#             import random
-#             from reportlab.lib import colors
-#             from reportlab.platypus import Table, TableStyle
-
-#             bedrijf = st.secrets["bedrijf"]
-
-#             eigen_naam = bedrijf["naam"]
-#             eigen_adres = bedrijf["adres"]
-#             eigen_postcode = bedrijf["postcode"]
-#             eigen_stad = bedrijf["stad"]
-#             eigen_mobiel = bedrijf["mobiel"]
-#             eigen_email = bedrijf["email"]
-#             eigen_kvk = bedrijf["kvk"]
-#             eigen_btw = bedrijf["btw"]
-#             eigen_iban = bedrijf["iban"]
-
-#             if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
-#                 st.error("Please fill in all client fields before generating the invoice.")
-#                 st.stop()
-
-#             vandaag = datetime.today()
-#             factuurdatum = vandaag.strftime("%d-%m-%Y")
-#             factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
-
-#             buffer = io.BytesIO()
-#             pdf = canvas.Canvas(buffer, pagesize=A4)
-#             width, height = A4
-
-#             # HEADER
-#             pdf.setFillColor(colors.blue)
-#             pdf.setFont("Helvetica-Bold", 22)
-#             pdf.drawRightString(width - 40, height - 70, f"Invoice {factuurnummer}")
-
-#             pdf.setFillColor(colors.black)
-#             pdf.setFont("Helvetica", 12)
-#             pdf.drawRightString(width - 40, height - 95, f"Period(s): {', '.join(selected_months)}")
-
-#             pdf.setFont("Helvetica", 10)
-#             pdf.drawRightString(width - 40, height - 115, f"Date: {factuurdatum}")
-
-#             y = height - 180
-
-#             # CLIENT
-#             pdf.setFont("Helvetica-Bold", 12)
-#             pdf.drawString(70, y, "Client")
-#             y -= 18
-
-#             pdf.setFont("Helvetica", 10)
-#             pdf.drawString(70, y, klant_naam)
-#             y -= 14
-#             pdf.drawString(70, y, klant_adres)
-#             y -= 14
-#             pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
-
-#             y -= 20
-#             pdf.line(70, y, width / 2, y)
-
-#             # CONTRACTOR
-#             y -= 25
-#             pdf.setFont("Helvetica-Bold", 12)
-#             pdf.drawString(70, y, "Contractor")
-#             y -= 18
-
-#             pdf.setFont("Helvetica", 10)
-#             pdf.drawString(70, y, eigen_naam)
-#             y -= 14
-#             pdf.drawString(70, y, eigen_adres)
-#             y -= 14
-#             pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
-#             y -= 14
-#             pdf.drawString(70, y, f"Phone: {eigen_mobiel}")
-#             y -= 14
-#             pdf.drawString(70, y, f"Email: {eigen_email}")
-#             y -= 14
-#             pdf.drawString(70, y, f"KvK: {eigen_kvk}")
-#             y -= 14
-#             pdf.drawString(70, y, f"VAT: {eigen_btw}")
-#             y -= 14
-#             pdf.drawString(70, y, f"IBAN: {eigen_iban}")
-
-#             y -= 30
-#             pdf.line(70, y, width - 40, y)
-#             y -= 40
-
-#             # TABLE
-#             table_data = [["Description", "Hours", "Rate", "Amount"]]
-
-#             # Deskwork + Fieldwork
-#             for _, row in df_month[df_month["type"] != "Travel"].iterrows():
-#                 hours = row["hours_worked"] if row["type"] == "Deskwork" else row["hours_per_round"]
-#                 table_data.append([
-#                     row["assignment"],
-#                     f"{hours:.2f}",
-#                     f"€ {row['rate']:,.2f}",
-#                     f"€ {row['amount']:,.2f}"
-#                 ])
-
-#             # Travel Costs (ONE LINE PER ENTRY)
-#             for _, row in df_month[df_month["type"] == "Travel"].iterrows():
-#                 table_data.append([
-#                     f"Travel — {row['area']}",
-#                     "-",
-#                     "-",
-#                     f"€ {row['travel_cost']:,.2f}"
-#                 ])
-
-#             table = Table(table_data, colWidths=[200, 80, 80, 100])
-
-#             table.setStyle(TableStyle([
-#                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-#                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-#                 ("BOX", (0, 0), (-1, -1), 1, colors.black),
-#                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-#                 ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-#             ]))
-
-#             table.wrapOn(pdf, width, height)
-#             table.drawOn(pdf, 70, y - len(table_data) * 18)
-
-#             y = y - len(table_data) * 18 - 40
-
-#             # TOTALS
-#             pdf.setFont("Helvetica-Bold", 12)
-#             pdf.drawRightString(width - 40, y, f"Subtotal: € {subtotal:,.2f}")
-#             y -= 20
-#             pdf.drawRightString(width - 40, y, f"VAT 21%: € {vat:,.2f}")
-#             y -= 20
-#             pdf.drawRightString(width - 40, y, f"Total: € {total:,.2f}")
-
-#             pdf.save()
-#             buffer.seek(0)
-
-#             st.download_button(
-#                 "Download PDF",
-#                 buffer,
-#                 file_name=f"invoice_{factuurnummer}.pdf",
-#                 mime="application/pdf"
-#             )
 #--------------------------------------------------------------------------------------------------------------------------
 import streamlit as st
 from supabase import create_client
@@ -1644,17 +820,17 @@ elif subpage == "Monthly Earnings":
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # PDF EXPORT (UPDATED WITH TRAVEL COSTS)
+        # PDF EXPORT (DUTCH INVOICE, COMPACT, GROUPED TABLES)
         # ---------------------------------------------------------
         st.subheader("Export invoice as PDF")
-
+        
         if st.button("Generate PDF"):
             import random
             from reportlab.lib import colors
             from reportlab.platypus import Table, TableStyle
-
+        
             bedrijf = st.secrets["bedrijf"]
-
+        
             eigen_naam = bedrijf["naam"]
             eigen_adres = bedrijf["adres"]
             eigen_postcode = bedrijf["postcode"]
@@ -1664,54 +840,54 @@ elif subpage == "Monthly Earnings":
             eigen_kvk = bedrijf["kvk"]
             eigen_btw = bedrijf["btw"]
             eigen_iban = bedrijf["iban"]
-
+        
             if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
                 st.error("Please fill in all client fields before generating the invoice.")
                 st.stop()
-
+        
             vandaag = datetime.today()
             factuurdatum = vandaag.strftime("%d-%m-%Y")
             factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
-
+        
             buffer = io.BytesIO()
             pdf = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
-
+        
             # HEADER
             pdf.setFillColor(colors.blue)
             pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawRightString(width - 40, height - 70, f"Invoice {factuurnummer}")
-
+            pdf.drawRightString(width - 40, height - 70, f"Factuur {factuurnummer}")
+        
             pdf.setFillColor(colors.black)
             pdf.setFont("Helvetica", 12)
-            pdf.drawRightString(width - 40, height - 95, f"Period(s): {', '.join(selected_months)}")
-
+            pdf.drawRightString(width - 40, height - 95, f"Periode(s): {', '.join(selected_months)}")
+        
             pdf.setFont("Helvetica", 10)
-            pdf.drawRightString(width - 40, height - 115, f"Date: {factuurdatum}")
-
+            pdf.drawRightString(width - 40, height - 115, f"Datum: {factuurdatum}")
+        
             y = height - 180
-
+        
             # CLIENT
             pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Client")
+            pdf.drawString(70, y, "Klant")
             y -= 18
-
+        
             pdf.setFont("Helvetica", 10)
             pdf.drawString(70, y, klant_naam)
             y -= 14
             pdf.drawString(70, y, klant_adres)
             y -= 14
             pdf.drawString(70, y, f"{klant_postcode} {klant_stad}")
-
+        
             y -= 20
             pdf.line(70, y, width / 2, y)
-
+        
             # CONTRACTOR
             y -= 25
             pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(70, y, "Contractor")
+            pdf.drawString(70, y, "Opdrachtnemer")
             y -= 18
-
+        
             pdf.setFont("Helvetica", 10)
             pdf.drawString(70, y, eigen_naam)
             y -= 14
@@ -1719,71 +895,130 @@ elif subpage == "Monthly Earnings":
             y -= 14
             pdf.drawString(70, y, f"{eigen_postcode} {eigen_stad}")
             y -= 14
-            pdf.drawString(70, y, f"Phone: {eigen_mobiel}")
+            pdf.drawString(70, y, f"Telefoon: {eigen_mobiel}")
             y -= 14
-            pdf.drawString(70, y, f"Email: {eigen_email}")
+            pdf.drawString(70, y, f"E-mail: {eigen_email}")
             y -= 14
             pdf.drawString(70, y, f"KvK: {eigen_kvk}")
             y -= 14
-            pdf.drawString(70, y, f"VAT: {eigen_btw}")
+            pdf.drawString(70, y, f"BTW: {eigen_btw}")
             y -= 14
             pdf.drawString(70, y, f"IBAN: {eigen_iban}")
-
+        
             y -= 30
             pdf.line(70, y, width - 40, y)
             y -= 40
-
-            # TABLE
-            table_data = [["Description", "Hours", "Rate", "Amount"]]
-
-            # Deskwork + Fieldwork
-            for _, row in df_month[df_month["type"] != "Travel"].iterrows():
-                hours = row["hours_worked"] if row["type"] == "Deskwork" else row["hours_per_round"]
-                table_data.append([
+        
+            # ---------------------------------------------------------
+            # GROUPED TABLES FOR INVOICE (DUTCH)
+            # ---------------------------------------------------------
+        
+            # Grouped assignment summary
+            df_assign = df_month[df_month["type"] != "Travel"].copy()
+            df_assign["hours"] = df_assign.apply(
+                lambda r: r["hours_worked"] if r["type"] == "Deskwork" else r["hours_per_round"],
+                axis=1
+            )
+        
+            assign_summary = (
+                df_assign.groupby("assignment")
+                .agg(
+                    total_hours=("hours", "sum"),
+                    total_amount=("amount", "sum")
+                )
+                .reset_index()
+            )
+        
+            # Grouped travel summary
+            travel_summary = (
+                df_month[df_month["type"] == "Travel"]
+                .groupby("area")["travel_cost"]
+                .sum()
+                .reset_index()
+            )
+        
+            # ---------------------------------------------------------
+            # TABLE 1 — WORK SUMMARY
+            # ---------------------------------------------------------
+        
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(70, y, "Overzicht werkzaamheden")
+            y -= 20
+        
+            table1_data = [["Opdracht", "Uren", "Bedrag (€)"]]
+        
+            for _, row in assign_summary.iterrows():
+                table1_data.append([
                     row["assignment"],
-                    f"{hours:.2f}",
-                    f"€ {row['rate']:,.2f}",
-                    f"€ {row['amount']:,.2f}"
+                    f"{row['total_hours']:.2f}",
+                    f"{row['total_amount']:,.2f}"
                 ])
-
-            # Travel Costs (ONE LINE PER ENTRY)
-            for _, row in df_month[df_month["type"] == "Travel"].iterrows():
-                table_data.append([
-                    f"Travel — {row['area']}",
-                    "-",
-                    "-",
-                    f"€ {row['travel_cost']:,.2f}"
-                ])
-
-            table = Table(table_data, colWidths=[200, 80, 80, 100])
-
-            table.setStyle(TableStyle([
+        
+            table1 = Table(table1_data, colWidths=[220, 80, 100])
+            table1.setStyle(TableStyle([
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("BOX", (0, 0), (-1, -1), 1, colors.black),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
             ]))
-
-            table.wrapOn(pdf, width, height)
-            table.drawOn(pdf, 70, y - len(table_data) * 18)
-
-            y = y - len(table_data) * 18 - 40
-
-            # TOTALS
+        
+            table1.wrapOn(pdf, width, height)
+            table1_height = len(table1_data) * 16
+            table1.drawOn(pdf, 70, y - table1_height)
+            y -= table1_height + 30
+        
+            # ---------------------------------------------------------
+            # TABLE 2 — TRAVEL COSTS
+            # ---------------------------------------------------------
+        
             pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawRightString(width - 40, y, f"Subtotal: € {subtotal:,.2f}")
+            pdf.drawString(70, y, "Reiskosten")
             y -= 20
-            pdf.drawRightString(width - 40, y, f"VAT 21%: € {vat:,.2f}")
+        
+            if travel_summary.empty:
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(70, y, "Geen reiskosten in deze periode.")
+                y -= 20
+            else:
+                travel_data = [["Gebied", "Bedrag (€)"]]
+                for _, row in travel_summary.iterrows():
+                    travel_data.append([
+                        row["area"],
+                        f"{row['travel_cost']:,.2f}"
+                    ])
+        
+                table2 = Table(travel_data, colWidths=[220, 100])
+                table2.setStyle(TableStyle([
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ]))
+        
+                table2.wrapOn(pdf, width, height)
+                table2_height = len(travel_data) * 16
+                table2.drawOn(pdf, 70, y - table2_height)
+                y -= table2_height + 30
+        
+            # ---------------------------------------------------------
+            # TOTALS
+            # ---------------------------------------------------------
+        
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawRightString(width - 40, y, f"Subtotaal: € {subtotal:,.2f}")
             y -= 20
-            pdf.drawRightString(width - 40, y, f"Total: € {total:,.2f}")
-
+            pdf.drawRightString(width - 40, y, f"BTW 21%: € {vat:,.2f}")
+            y -= 20
+            pdf.drawRightString(width - 40, y, f"Totaal: € {total:,.2f}")
+        
             pdf.save()
             buffer.seek(0)
-
+        
             st.download_button(
                 "Download PDF",
                 buffer,
-                file_name=f"invoice_{factuurnummer}.pdf",
+                file_name=f"factuur_{factuurnummer}.pdf",
                 mime="application/pdf"
             )
