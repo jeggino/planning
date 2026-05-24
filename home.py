@@ -919,7 +919,7 @@ elif subpage == "Monthly Earnings":
                 lambda r: r["hours_worked"] if r["type"] == "Deskwork" else r["hours_per_round"],
                 axis=1
             )
-            
+        
             assign_summary = (
                 df_assign.groupby("assignment")
                 .agg(
@@ -929,14 +929,25 @@ elif subpage == "Monthly Earnings":
                 )
                 .reset_index()
             )
-            
-            # TABLE 1 — Work summary (with hourly rate)
+        
+            # Grouped travel summary
+            travel_summary = (
+                df_month[df_month["type"] == "Travel"]
+                .groupby("area")["travel_cost"]
+                .sum()
+                .reset_index()
+            )
+        
+            # ---------------------------------------------------------
+            # TABLE 1 — WORK SUMMARY
+            # ---------------------------------------------------------
+        
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(70, y, "Overzicht werkzaamheden")
             y -= 20
-            
+        
             table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
-            
+        
             for _, row in assign_summary.iterrows():
                 table1_data.append([
                     row["assignment"],
@@ -944,7 +955,7 @@ elif subpage == "Monthly Earnings":
                     f"{row['hourly_rate']:,.2f}",
                     f"{row['total_amount']:,.2f}"
                 ])
-            
+        
             table1 = Table(table1_data, colWidths=[180, 60, 80, 80])
             table1.setStyle(TableStyle([
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -953,7 +964,7 @@ elif subpage == "Monthly Earnings":
                 ("ALIGN", (1, 1), (-1, -1), "CENTER"),
                 ("FONTSIZE", (0, 0), (-1, -1), 9),
             ]))
-            
+        
             table1.wrapOn(pdf, width, height)
             table1_height = len(table1_data) * 16
             table1.drawOn(pdf, 70, y - table1_height)
