@@ -1383,28 +1383,33 @@ elif subpage == "Monthly Earnings":
             # -----------------------------------------------------
             def first_page(canvas, doc_obj):
                 canvas.saveState()
-
+            
                 # FOOTER
                 canvas.setFont("Helvetica", 7)
                 x = doc_obj.leftMargin
                 y = 12 * mm
                 canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
                 canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
-
+            
                 # FIXED TOTALS (BOTTOM RIGHT)
+                tx = doc_obj.leftMargin + doc_obj.width
+                ty = 45 * mm   # adjust if needed
+            
+                # Normal totals
                 canvas.setFont("Helvetica", 10)
-                tx = doc_obj.width + doc_obj.leftMargin
-                ty = 40 * mm
-
-                canvas.drawRightString(tx, ty + 30, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
-                canvas.drawRightString(tx, ty + 15, f"BTW 21%: € {vat:,.2f}")
-                canvas.drawRightString(tx, ty, f"Totaal (excl. reiskosten): € {total:,.2f}")
-
-                canvas.setFillColor(colors.red)
-                canvas.drawRightString(tx, ty - 15, f"Eindtotaal: € {final_total:,.2f}")
                 canvas.setFillColor(colors.black)
-
+                canvas.drawRightString(tx, ty + 45, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
+                canvas.drawRightString(tx, ty + 30, f"BTW 21%: € {vat:,.2f}")
+                canvas.drawRightString(tx, ty + 15, f"Totaal (excl. reiskosten): € {total:,.2f}")
+                canvas.drawRightString(tx, ty, f"Reiskosten [1]: € {travel_total:,.2f}")
+            
+                # Eindtotaal — bold, red, larger
+                canvas.setFont("Helvetica-Bold", 12)
+                canvas.setFillColor(colors.red)
+                canvas.drawRightString(tx, ty - 20, f"Eindtotaal [2]: € {final_total:,.2f}")
+            
                 canvas.restoreState()
+
 
             def later_pages(canvas, doc_obj):
                 pass
