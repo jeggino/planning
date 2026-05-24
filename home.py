@@ -829,10 +829,6 @@ elif subpage == "Monthly Earnings":
 
         st.markdown("---")
 
-        # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE)
-        # ---------------------------------------------------------
-        st.subheader("Export invoice as PDF")
 
 
         # # ---------------------------------------------------------
@@ -1359,6 +1355,53 @@ elif subpage == "Monthly Earnings":
             # -----------------------------------------------------
             story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading2))
             story.append(Spacer(1, 12))
+
+            current_area = None
+            for _, row in area_summary.iterrows():
+                area = row["area"]
+                if area != current_area:
+                    story.append(Spacer(1, 8))
+                    story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
+                    story.append(Spacer(1, 6))
+                    current_area = area
+
+                # A3 style with indentation
+                story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent_line))
+                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent_line2))
+                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent_line2))
+                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent_line2))
+                story.append(Spacer(1, 10))
+
+            # -----------------------------------------------------
+            # FOOTER ON FIRST PAGE ONLY (F1)
+            # -----------------------------------------------------
+            def first_page(canvas, doc_obj):
+                canvas.saveState()
+                footer_text1 = "[1] Reiskosten zijn vrijgesteld van BTW."
+                footer_text2 = "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum."
+                canvas.setFont("Helvetica", 7)
+                x = doc_obj.leftMargin
+                y = 12 * mm
+                canvas.drawString(x, y + 8, footer_text1)
+                canvas.drawString(x, y, footer_text2)
+                canvas.restoreState()
+
+            def later_pages(canvas, doc_obj):
+                # No footer on later pages (for now)
+                canvas.saveState()
+                canvas.restoreState()
+
+            # BUILD PDF
+            doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
+            buffer.seek(0)
+
+            st.download_button(
+                "Download PDF",
+                buffer,
+                file_name=f"factuur_{factuurnummer}.pdf",
+                mime="application/pdf",
+            )
+
 
 
 
