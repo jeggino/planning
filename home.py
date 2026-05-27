@@ -621,7 +621,7 @@ elif subpage == "Planning":
                 "right": "dayGridMonth,timeGridWeek,listWeek",
             },
             "events": calendar_events,
-            "height": 850,
+            "height": 650,
         }
         
         custom_css = """
