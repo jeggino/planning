@@ -722,21 +722,6 @@ elif subpage == "Planning":
                 st.success("Planned round confirmed and moved to rounds.")
                 refresh()
 
-        st.markdown("---")
-
-        st.subheader("Planned rounds table")
-
-        table_df = df_planned[["planned_date", "assignment", "area", "relative"]].rename(
-            columns={
-                "planned_date": "Date",
-                "assignment": "Assignment",
-                "area": "Area",
-                "relative": "When"
-            }
-        )
-
-        st.dataframe(table_df, use_container_width=True)
-
 # ---------------------------------------------------------
 # PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
 # ---------------------------------------------------------
