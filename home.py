@@ -604,15 +604,13 @@ elif subpage == "Planning":
         
         st.markdown("### Calendar view of planned rounds")
         
-        # Convert planned rounds to FullCalendar events
         calendar_events = []
-        
         for r in rows:
             calendar_events.append({
                 "title": f"{r['area']} – {r['assignment']}",
                 "start": r["planned_date"].isoformat(),
                 "allDay": True,
-                "id": r["id"]
+                "id": r["id"],
             })
         
         calendar_options = {
@@ -620,21 +618,31 @@ elif subpage == "Planning":
             "headerToolbar": {
                 "left": "prev,next today",
                 "center": "title",
-                "right": "dayGridMonth,timeGridWeek,listWeek"
+                "right": "dayGridMonth,timeGridWeek,listWeek",
             },
             "events": calendar_events,
             "height": 650,
-            "eventDidMount": """
-                function(info) {
-                    // Add a native HTML tooltip
-                    info.el.setAttribute("title", info.event.title);
-                }
-            """
         }
-
-
         
-        calendar(calendar_options)
+        custom_css = """
+        /* Allow long titles to wrap instead of being cut off */
+        .fc-daygrid-event .fc-event-title {
+            white-space: normal;
+        }
+        
+        /* Optional: make events taller so full text fits more often */
+        .fc-daygrid-event {
+            min-height: 2.2em;
+        }
+        """
+        
+        calendar(
+            events=calendar_events,
+            options=calendar_options,
+            custom_css=custom_css,
+            key="planning_calendar",
+        )
+
 
 
         
