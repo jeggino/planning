@@ -624,36 +624,14 @@ elif subpage == "Planning":
             },
             "events": calendar_events,
             "height": 650,
-            "eventMouseEnter": """
+            "eventDidMount": """
                 function(info) {
-                    const tooltip = document.createElement('div');
-                    tooltip.id = 'event-tooltip';
-                    tooltip.style.position = 'absolute';
-                    tooltip.style.background = '#333';
-                    tooltip.style.color = 'white';
-                    tooltip.style.padding = '6px 10px';
-                    tooltip.style.borderRadius = '4px';
-                    tooltip.style.fontSize = '13px';
-                    tooltip.style.pointerEvents = 'none';
-                    tooltip.style.zIndex = 9999;
-                    tooltip.innerHTML = info.event.title;
-        
-                    document.body.appendChild(tooltip);
-        
-                    function moveTooltip(e) {
-                        tooltip.style.left = (e.pageX + 12) + 'px';
-                        tooltip.style.top = (e.pageY + 12) + 'px';
-                    }
-        
-                    document.addEventListener('mousemove', moveTooltip);
-        
-                    info.el.addEventListener('mouseleave', () => {
-                        tooltip.remove();
-                        document.removeEventListener('mousemove', moveTooltip);
-                    });
+                    // Add a native HTML tooltip
+                    info.el.setAttribute("title", info.event.title);
                 }
             """
         }
+
 
         
         calendar(calendar_options)
