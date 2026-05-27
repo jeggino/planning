@@ -599,6 +599,37 @@ elif subpage == "Planning":
                 f"• {row['area']} — {row['assignment']}"
             )
 
+
+        from streamlit_calendar import calendar
+        
+        st.markdown("### Calendar view of planned rounds")
+        
+        # Convert planned rounds to FullCalendar events
+        calendar_events = []
+        
+        for r in rows:
+            calendar_events.append({
+                "title": f"{r['area']} – {r['assignment']}",
+                "start": r["planned_date"].isoformat(),
+                "allDay": True,
+                "id": r["id"]
+            })
+        
+        calendar_options = {
+            "initialView": "dayGridMonth",
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,listWeek"
+            },
+            "events": calendar_events,
+            "height": 650
+        }
+        
+        calendar(calendar_options)
+
+
+        
         st.markdown("---")
 
         st.subheader("Edit, delete or confirm a planned round")
