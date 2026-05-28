@@ -724,7 +724,6 @@ elif subpage == "Rounds Overview & Plot":
 
 from datetime import date, datetime
 import pandas as pd
-import streamlit as st
 from streamlit_calendar import calendar
 
 # =========================================================
