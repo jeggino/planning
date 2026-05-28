@@ -1121,7 +1121,6 @@ elif subpage == "Planning":
 # =========================================================
 # PAGE — PLANNING (FIELDWORK ONLY) — REWRITTEN WITH DIALOGS
 # =========================================================
-
 elif subpage == "Planning":
     st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
 
