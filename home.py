@@ -722,145 +722,357 @@ elif subpage == "Planning":
                 st.success("Planned round confirmed and moved to rounds.")
                 refresh()
 
-# ---------------------------------------------------------
-# PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
-# ---------------------------------------------------------
-elif subpage == "Monthly Earnings":
-    st.header("Monthly Earnings")
+# # ---------------------------------------------------------
+# # PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
+# # ---------------------------------------------------------
+# elif subpage == "Monthly Earnings":
+#     st.header("Monthly Earnings")
 
-    rounds = get_rounds()
-    if not rounds:
-        st.info("No rounds yet.")
-    else:
-        df = pd.DataFrame([
-            {
-                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
-                "assignment": r["assignments"]["name"] if r["assignments"] else None,
-                "type": (
-                    r["assignments"]["type"]
-                    if r["assignments"]
-                    else ("Travel" if r["travel_cost"] else None)
-                ),
-                "area": r["areas"]["name"] if r["areas"] else None,
-                "hours_worked": r["hours_worked"],
-                "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
-                "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
-                "travel_cost": r["travel_cost"]
-            }
-            for r in rounds
-        ])
+#     rounds = get_rounds()
+#     if not rounds:
+#         st.info("No rounds yet.")
+#     else:
+#         df = pd.DataFrame([
+#             {
+#                 "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
+#                 "assignment": r["assignments"]["name"] if r["assignments"] else None,
+#                 "type": (
+#                     r["assignments"]["type"]
+#                     if r["assignments"]
+#                     else ("Travel" if r["travel_cost"] else None)
+#                 ),
+#                 "area": r["areas"]["name"] if r["areas"] else None,
+#                 "hours_worked": r["hours_worked"],
+#                 "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
+#                 "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
+#                 "travel_cost": r["travel_cost"]
+#             }
+#             for r in rounds
+#         ])
 
-        # ---------------------------------------------------------
-        # COMPUTE HOURS + AMOUNT
-        # ---------------------------------------------------------
-        def compute_amount(row):
-            if row["type"] == "Deskwork":
-                return (row["hours_worked"] or 0) * (row["rate"] or 0)
-            elif row["type"] == "Fieldwork":
-                return (row["hours_per_round"] or 0) * (row["rate"] or 0)
-            elif row["type"] == "Extra":
-                return (row["hours_worked"] or 0) * (row["rate"] or 0)
-            else:
-                return row["travel_cost"] or 0
+#         # ---------------------------------------------------------
+#         # COMPUTE HOURS + AMOUNT
+#         # ---------------------------------------------------------
+#         def compute_amount(row):
+#             if row["type"] == "Deskwork":
+#                 return (row["hours_worked"] or 0) * (row["rate"] or 0)
+#             elif row["type"] == "Fieldwork":
+#                 return (row["hours_per_round"] or 0) * (row["rate"] or 0)
+#             elif row["type"] == "Extra":
+#                 return (row["hours_worked"] or 0) * (row["rate"] or 0)
+#             else:
+#                 return row["travel_cost"] or 0
 
-        df["amount"] = df.apply(compute_amount, axis=1)
-        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
+#         df["amount"] = df.apply(compute_amount, axis=1)
+#         df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
 
-        # ---------------------------------------------------------
-        # MONTH SELECTION
-        # ---------------------------------------------------------
-        st.subheader("Select month(s)")
-        months = sorted(df["month"].unique())
-        selected_months = st.multiselect("Months", months, default=[months[-1]])
+#         # ---------------------------------------------------------
+#         # MONTH SELECTION
+#         # ---------------------------------------------------------
+#         st.subheader("Select month(s)")
+#         months = sorted(df["month"].unique())
+#         selected_months = st.multiselect("Months", months, default=[months[-1]])
 
-        if not selected_months:
-            st.info("Select at least one month.")
-            st.stop()
+#         if not selected_months:
+#             st.info("Select at least one month.")
+#             st.stop()
 
-        df_month = df[df["month"].isin(selected_months)]
+#         df_month = df[df["month"].isin(selected_months)]
 
-        # ---------------------------------------------------------
-        # TOTALS
-        # ---------------------------------------------------------
-        subtotal = df_month["amount"].sum()
-        vat = subtotal * 0.21
-        total = subtotal + vat
+#         # ---------------------------------------------------------
+#         # TOTALS
+#         # ---------------------------------------------------------
+#         subtotal = df_month["amount"].sum()
+#         vat = subtotal * 0.21
+#         total = subtotal + vat
 
-        st.metric("Subtotal", f"€ {subtotal:,.2f}")
-        st.metric("VAT 21%", f"€ {vat:,.2f}")
-        st.metric("Total", f"€ {total:,.2f}")
+#         st.metric("Subtotal", f"€ {subtotal:,.2f}")
+#         st.metric("VAT 21%", f"€ {vat:,.2f}")
+#         st.metric("Total", f"€ {total:,.2f}")
 
-        st.markdown("---")
+#         st.markdown("---")
 
-        # ---------------------------------------------------------
-        # HOURS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Hours per assignment")
+#         # ---------------------------------------------------------
+#         # HOURS PER ASSIGNMENT
+#         # ---------------------------------------------------------
+#         st.subheader("Hours per assignment")
 
-        df_hours = df_month[df_month["type"] != "Travel"].copy()
-        df_hours["hours"] = df_hours.apply(
-            lambda r: (
-                r["hours_worked"]
-                if r["type"] in ["Deskwork", "Extra"]
-                else r["hours_per_round"]
-            ),
-            axis=1
+#         df_hours = df_month[df_month["type"] != "Travel"].copy()
+#         df_hours["hours"] = df_hours.apply(
+#             lambda r: (
+#                 r["hours_worked"]
+#                 if r["type"] in ["Deskwork", "Extra"]
+#                 else r["hours_per_round"]
+#             ),
+#             axis=1
+#         )
+
+#         hours_assignment = (
+#             df_hours.groupby("assignment")["hours"]
+#             .sum()
+#             .reset_index()
+#             .sort_values("hours", ascending=False)
+#         )
+
+#         st.dataframe(hours_assignment, use_container_width=True)
+
+#         st.markdown("---")
+
+#         # ---------------------------------------------------------
+#         # TRAVEL COSTS TABLE
+#         # ---------------------------------------------------------
+#         st.subheader("Travel Costs")
+
+#         df_travel = df_month[df_month["type"] == "Travel"]
+
+#         if df_travel.empty:
+#             st.info("No travel costs this month.")
+#         else:
+#             travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
+#             st.dataframe(travel_table, use_container_width=True)
+
+#         st.markdown("---")
+
+#         # ---------------------------------------------------------
+#         # EARNINGS PER ASSIGNMENT
+#         # ---------------------------------------------------------
+#         st.subheader("Total earnings per assignment")
+
+#         earnings_assignment = (
+#             df_month[df_month["type"] != "Travel"]
+#             .groupby("assignment")["amount"]
+#             .sum()
+#             .reset_index()
+#             .sort_values("amount", ascending=False)
+#         )
+
+#         st.dataframe(earnings_assignment, use_container_width=True)
+
+#         st.markdown("---")
+
+#         # ---------------------------------------------------------
+#         # CLIENT INFO
+#         # ---------------------------------------------------------
+#         st.subheader("Client information (for invoice)")
+#         klant_naam = st.text_input("Client name")
+#         klant_adres = st.text_input("Client address")
+#         klant_postcode = st.text_input("Client postcode")
+#         klant_stad = st.text_input("Client city")
+
+#         st.markdown("---")
+
+# =========================================================
+# PAGE — PLANNING (FIELDWORK ONLY) — REWRITTEN WITH DIALOGS
+# =========================================================
+
+elif subpage == "Planning":
+    st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
+
+    assignments = get_assignments()
+    areas = get_areas()
+
+    if not assignments or not areas:
+        st.info("You need at least one assignment and one area to plan rounds.")
+        st.stop()
+
+    fieldwork_assignments = [a for a in assignments if a["type"] == "Fieldwork"]
+
+    if not fieldwork_assignments:
+        st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
+        st.stop()
+
+    st.subheader("Plan a new fieldwork round")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        planned_date = st.date_input("Planned date", value=date.today())
+
+    with col2:
+        selected_assignment = st.selectbox(
+            "Assignment (Fieldwork only)",
+            fieldwork_assignments,
+            format_func=lambda a: a["name"]
         )
 
-        hours_assignment = (
-            df_hours.groupby("assignment")["hours"]
-            .sum()
-            .reset_index()
-            .sort_values("hours", ascending=False)
+    with col3:
+        selected_area = st.selectbox(
+            "Area",
+            areas,
+            format_func=lambda a: a["name"]
         )
 
-        st.dataframe(hours_assignment, use_container_width=True)
+    if st.button("Save planning"):
+        supabase.table("planned_rounds").insert({
+            "assignment_id": selected_assignment["id"],
+            "area_id": selected_area["id"],
+            "planned_date": planned_date.isoformat()
+        }).execute()
+        st.success("Planned round saved.")
+        st.rerun()
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # ---------------------------------------------------------
-        # TRAVEL COSTS TABLE
-        # ---------------------------------------------------------
-        st.subheader("Travel Costs")
+    # =========================================================
+    # UPCOMING PLANNED ROUNDS
+    # =========================================================
 
-        df_travel = df_month[df_month["type"] == "Travel"]
+    st.subheader("Upcoming planned rounds")
 
-        if df_travel.empty:
-            st.info("No travel costs this month.")
+    planned = get_planned_rounds()
+
+    if not planned:
+        st.info("No planned rounds yet.")
+        st.stop()
+
+    rows = []
+    today = date.today()
+
+    for r in planned:
+        pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
+        diff = (pd_date - today).days
+
+        if diff > 0:
+            rel = f"in {diff} days"
+        elif diff == 0:
+            rel = "today"
         else:
-            travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
-            st.dataframe(travel_table, use_container_width=True)
+            rel = f"{abs(diff)} days ago"
 
-        st.markdown("---")
+        rows.append({
+            "id": r["id"],
+            "planned_date": pd_date,
+            "assignment_id": r["assignment_id"],
+            "area_id": r["area_id"],
+            "assignment": r["assignments"]["name"] if r["assignments"] else None,
+            "area": r["areas"]["name"] if r["areas"] else None,
+            "days_diff": diff,
+            "relative": rel
+        })
 
-        # ---------------------------------------------------------
-        # EARNINGS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Total earnings per assignment")
+    df_planned = pd.DataFrame(rows).sort_values("planned_date")
 
-        earnings_assignment = (
-            df_month[df_month["type"] != "Travel"]
-            .groupby("assignment")["amount"]
-            .sum()
-            .reset_index()
-            .sort_values("amount", ascending=False)
+    for _, row in df_planned.iterrows():
+        st.markdown(
+            f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
+            f"• {row['area']} — {row['assignment']}"
         )
 
-        st.dataframe(earnings_assignment, use_container_width=True)
+    # =========================================================
+    # CALENDAR VIEW
+    # =========================================================
 
-        st.markdown("---")
+    from streamlit_calendar import calendar
 
-        # ---------------------------------------------------------
-        # CLIENT INFO
-        # ---------------------------------------------------------
-        st.subheader("Client information (for invoice)")
-        klant_naam = st.text_input("Client name")
-        klant_adres = st.text_input("Client address")
-        klant_postcode = st.text_input("Client postcode")
-        klant_stad = st.text_input("Client city")
+    st.markdown("### Calendar view of planned rounds")
 
-        st.markdown("---")
+    calendar_events = [
+        {
+            "title": f"{r['area']} – {r['assignment']}",
+            "start": r["planned_date"].isoformat(),
+            "allDay": True,
+            "id": r["id"],
+        }
+        for r in rows
+    ]
 
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,listWeek",
+        },
+        "events": calendar_events,
+        "height": 650,
+    }
+
+    custom_css = """
+        .fc-daygrid-event .fc-event-title { white-space: normal; }
+        .fc-daygrid-event { min-height: 2.2em; }
+    """
+
+    calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="planning_calendar")
+
+    st.markdown("---")
+
+    # =========================================================
+    # HANDLE CALENDAR CLICK
+    # =========================================================
+
+    clicked = st.session_state.get("planning_calendar")
+
+    if not clicked:
+        st.info("Click a planned round in the calendar to edit, delete or confirm it.")
+        st.stop()
+
+    selected_id = clicked["event"]["id"]
+    row = next(r for r in rows if r["id"] == selected_id)
+
+    st.subheader("Selected planned round")
+    st.write(f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} ({row['relative']})")
+
+    # =========================================================
+    # DELETE DIALOG
+    # =========================================================
+
+    @st.dialog("Confirm deletion")
+    def delete_dialog():
+        st.image("https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png", width=200)
+        st.write(f"Are you sure you want to delete the planned round on **{row['planned_date']}**?")
+        if st.button("Yes, delete"):
+            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+            st.success("Deleted.")
+            st.rerun()
+
+    # =========================================================
+    # EDIT DIALOG
+    # =========================================================
+
+    @st.dialog("Edit planned round")
+    def edit_dialog():
+        with st.form("edit_form"):
+            new_date = st.date_input("New date", value=row["planned_date"])
+            new_assignment = st.selectbox("Assignment", fieldwork_assignments, format_func=lambda a: a["name"])
+            new_area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+
+            if st.form_submit_button("Save changes"):
+                supabase.table("planned_rounds").update({
+                    "planned_date": new_date.isoformat(),
+                    "assignment_id": new_assignment["id"],
+                    "area_id": new_area["id"]
+                }).eq("id", row["id"]).execute()
+                st.success("Updated.")
+                st.rerun()
+
+    # =========================================================
+    # ACTION BUTTONS
+    # =========================================================
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("Edit"):
+            edit_dialog()
+
+    with col2:
+        if st.button("Delete"):
+            delete_dialog()
+
+    with col3:
+        if st.button("Confirm done"):
+            supabase.table("rounds").insert({
+                "assignment_id": row["assignment_id"],
+                "area_id": row["area_id"],
+                "work_date": row["planned_date"].isoformat(),
+                "hours_worked": None,
+                "travel_cost": None
+            }).execute()
+
+            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+
+            st.success("Confirmed and moved to rounds.")
+            st.rerun()
 
 
         # # ---------------------------------------------------------
