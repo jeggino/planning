@@ -511,253 +511,8 @@ elif subpage == "Rounds Overview & Plot":
                 refresh()
 
 
-# =========================================================
-# PAGE — PLANNING (FIELDWORK ONLY) — FINAL VERSION
-# =========================================================
-elif subpage == "Planning":
-    st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
-
-    assignments = get_assignments()
-    areas = get_areas()
-
-    if not assignments or not areas:
-        st.info("You need at least one assignment and one area to plan rounds.")
-        st.stop()
-
-    fieldwork_assignments = [a for a in assignments if a["type"] == "Fieldwork"]
-
-    if not fieldwork_assignments:
-        st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
-        st.stop()
-
-    # -----------------------------------------------------
-    # PLAN A NEW ROUND
-    # -----------------------------------------------------
-    st.subheader("Plan a new fieldwork round")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        planned_date = st.date_input("Planned date", value=date.today())
-
-    with col2:
-        selected_assignment = st.selectbox(
-            "Assignment (Fieldwork only)",
-            fieldwork_assignments,
-            format_func=lambda a: a["name"]
-        )
-
-    with col3:
-        selected_area = st.selectbox(
-            "Area",
-            areas,
-            format_func=lambda a: a["name"]
-        )
-
-    if st.button("Save planning"):
-        supabase.table("planned_rounds").insert({
-            "assignment_id": selected_assignment["id"],
-            "area_id": selected_area["id"],
-            "planned_date": planned_date.isoformat()
-        }).execute()
-        st.success("Planned round saved.")
-        st.rerun()
-
-    st.markdown("---")
-
-    # -----------------------------------------------------
-    # UPCOMING PLANNED ROUNDS
-    # -----------------------------------------------------
-    st.subheader("Upcoming planned rounds")
-
-    planned = get_planned_rounds()
-
-    if not planned:
-        st.info("No planned rounds yet.")
-        st.stop()
-
-    rows = []
-    today = date.today()
-
-    for r in planned:
-        pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
-        diff = (pd_date - today).days
-
-        if diff > 0:
-            rel = f"in {diff} days"
-        elif diff == 0:
-            rel = "today"
-        else:
-            rel = f"{abs(diff)} days ago"
-
-        rows.append({
-            "id": r["id"],
-            "planned_date": pd_date,
-            "assignment_id": r["assignment_id"],
-            "area_id": r["area_id"],
-            "assignment": r["assignments"]["name"] if r["assignments"] else None,
-            "area": r["areas"]["name"] if r["areas"] else None,
-            "days_diff": diff,
-            "relative": rel
-        })
-
-    df_planned = pd.DataFrame(rows).sort_values("planned_date")
-
-    for _, row in df_planned.iterrows():
-        st.markdown(
-            f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
-            f"• {row['area']} — {row['assignment']}"
-        )
-
-    # -----------------------------------------------------
-    # CALENDAR VIEW
-    # -----------------------------------------------------
-    st.markdown("### Calendar view of planned rounds")
-
-    calendar_events = [
-        {
-            "title": f"{r['area']} – {r['assignment']}",
-            "start": r["planned_date"].isoformat(),
-            "allDay": True,
-            "id": r["id"],
-        }
-        for r in rows
-    ]
-
-    calendar_options = {
-        "initialView": "dayGridMonth",
-        "headerToolbar": {
-            "left": "prev,next today",
-            "center": "title",
-            "right": "dayGridMonth,timeGridWeek,listWeek",
-        },
-        "events": calendar_events,
-        "height": 650,
-    }
-
-    custom_css = """
-        .fc-daygrid-event .fc-event-title { white-space: normal; }
-        .fc-daygrid-event { min-height: 2.2em; }
-    """
-
-    # IMPORTANT: use a unique key to avoid collisions
-    calendar(
-        events=calendar_events,
-        options=calendar_options,
-        custom_css=custom_css,
-        key="fw_calendar_clicks",
-    )
-
-    st.markdown("---")
-
-    # -----------------------------------------------------
-    # HANDLE CALENDAR CLICK
-    # -----------------------------------------------------
-    clicked = st.session_state.get("fw_calendar_clicks")
-
-    # clicked is expected to be something like:
-    # {"event": {"id": ..., "title": ..., ...}, "jsEvent": {...}, ...}
-    if not clicked or "event" not in clicked or "id" not in clicked["event"]:
-        st.info("Click a planned round in the calendar to edit, delete or confirm it.")
-        st.stop()
-
-    selected_id = clicked["event"]["id"]
-    row = next(r for r in rows if r["id"] == selected_id)
-
-    st.subheader("Selected planned round")
-    st.write(
-        f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} "
-        f"({row['relative']})"
-    )
-
-    # -----------------------------------------------------
-    # DIALOGS
-    # -----------------------------------------------------
-
-    @st.dialog("Confirm deletion")
-    def delete_dialog():
-        st.image(
-            "https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png",
-            width=220,
-        )
-        st.write(
-            f"Are you sure you want to delete the planned round on "
-            f"**{row['planned_date']}** for **{row['area']} – {row['assignment']}**?"
-        )
-        col_d1, col_d2 = st.columns(2)
-        with col_d1:
-            if st.button("Yes, delete", type="primary"):
-                supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-                st.success("Planned round deleted.")
-                st.rerun()
-        with col_d2:
-            st.button("Cancel")
-
-    @st.dialog("Edit planned round")
-    def edit_dialog():
-        # Pre-select current assignment and area
-        current_assignment = next(
-            a for a in fieldwork_assignments if a["id"] == row["assignment_id"]
-        )
-        current_area = next(
-            a for a in areas if a["id"] == row["area_id"]
-        )
-
-        with st.form("edit_form"):
-            new_date = st.date_input("New planned date", value=row["planned_date"])
-            new_assignment = st.selectbox(
-                "New assignment (Fieldwork only)",
-                fieldwork_assignments,
-                index=fieldwork_assignments.index(current_assignment),
-                format_func=lambda a: a["name"],
-            )
-            new_area = st.selectbox(
-                "New area",
-                areas,
-                index=areas.index(current_area),
-                format_func=lambda a: a["name"],
-            )
-
-            submitted = st.form_submit_button("Save changes")
-            if submitted:
-                supabase.table("planned_rounds").update({
-                    "planned_date": new_date.isoformat(),
-                    "assignment_id": new_assignment["id"],
-                    "area_id": new_area["id"],
-                }).eq("id", row["id"]).execute()
-                st.success("Planned round updated.")
-                st.rerun()
-
-    # -----------------------------------------------------
-    # ACTION BUTTONS
-    # -----------------------------------------------------
-    col_a, col_b, col_c = st.columns(3)
-
-    with col_a:
-        if st.button("Edit"):
-            edit_dialog()
-
-    with col_b:
-        if st.button("Delete"):
-            delete_dialog()
-
-    with col_c:
-        if st.button("Confirm done"):
-            supabase.table("rounds").insert({
-                "assignment_id": row["assignment_id"],
-                "area_id": row["area_id"],
-                "work_date": row["planned_date"].isoformat(),
-                "hours_worked": None,
-                "travel_cost": None,
-            }).execute()
-
-            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-
-            st.success("Planned round confirmed and moved to rounds.")
-            st.rerun()
-
 # # =========================================================
-# # PAGE — PLANNING (FIELDWORK ONLY)
+# # PAGE — PLANNING (FIELDWORK ONLY) — FINAL VERSION
 # # =========================================================
 # elif subpage == "Planning":
 #     st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
@@ -775,6 +530,9 @@ elif subpage == "Planning":
 #         st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
 #         st.stop()
 
+#     # -----------------------------------------------------
+#     # PLAN A NEW ROUND
+#     # -----------------------------------------------------
 #     st.subheader("Plan a new fieldwork round")
 
 #     col1, col2, col3 = st.columns(3)
@@ -803,173 +561,415 @@ elif subpage == "Planning":
 #             "planned_date": planned_date.isoformat()
 #         }).execute()
 #         st.success("Planned round saved.")
-#         refresh()
+#         st.rerun()
 
 #     st.markdown("---")
 
+#     # -----------------------------------------------------
+#     # UPCOMING PLANNED ROUNDS
+#     # -----------------------------------------------------
 #     st.subheader("Upcoming planned rounds")
 
 #     planned = get_planned_rounds()
 
 #     if not planned:
 #         st.info("No planned rounds yet.")
-#     else:
-#         rows = []
-#         today = date.today()
+#         st.stop()
 
-#         for r in planned:
-#             pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
-#             diff = (pd_date - today).days
+#     rows = []
+#     today = date.today()
 
-#             if diff > 0:
-#                 rel = f"in {diff} days"
-#             elif diff == 0:
-#                 rel = "today"
-#             else:
-#                 rel = f"{abs(diff)} days ago"
+#     for r in planned:
+#         pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
+#         diff = (pd_date - today).days
 
-#             rows.append({
-#                 "id": r["id"],
-#                 "planned_date": pd_date,
-#                 "assignment_id": r["assignment_id"],
-#                 "area_id": r["area_id"],
-#                 "assignment": r["assignments"]["name"] if r["assignments"] else None,
-#                 "area": r["areas"]["name"] if r["areas"] else None,
-#                 "days_diff": diff,
-#                 "relative": rel
-#             })
+#         if diff > 0:
+#             rel = f"in {diff} days"
+#         elif diff == 0:
+#             rel = "today"
+#         else:
+#             rel = f"{abs(diff)} days ago"
 
-#         df_planned = pd.DataFrame(rows).sort_values("planned_date")
+#         rows.append({
+#             "id": r["id"],
+#             "planned_date": pd_date,
+#             "assignment_id": r["assignment_id"],
+#             "area_id": r["area_id"],
+#             "assignment": r["assignments"]["name"] if r["assignments"] else None,
+#             "area": r["areas"]["name"] if r["areas"] else None,
+#             "days_diff": diff,
+#             "relative": rel
+#         })
 
-#         # List view
-#         for _, row in df_planned.iterrows():
-#             st.markdown(
-#                 f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
-#                 f"• {row['area']} — {row['assignment']}"
-#             )
+#     df_planned = pd.DataFrame(rows).sort_values("planned_date")
 
-
-#         from streamlit_calendar import calendar
-        
-#         st.markdown("### Calendar view of planned rounds")
-        
-#         calendar_events = []
-#         for r in rows:
-#             calendar_events.append({
-#                 "title": f"{r['area']} – {r['assignment']}",
-#                 "start": r["planned_date"].isoformat(),
-#                 "allDay": True,
-#                 "id": r["id"],
-#             })
-        
-#         calendar_options = {
-#             "initialView": "dayGridMonth",
-#             "headerToolbar": {
-#                 "left": "prev,next today",
-#                 "center": "title",
-#                 "right": "dayGridMonth,timeGridWeek,listWeek",
-#             },
-#             "events": calendar_events,
-#             "height": 650,
-#         }
-        
-#         custom_css = """
-#         /* Allow long titles to wrap instead of being cut off */
-#         .fc-daygrid-event .fc-event-title {
-#             white-space: normal;
-#         }
-        
-#         /* Optional: make events taller so full text fits more often */
-#         .fc-daygrid-event {
-#             min-height: 2.2em;
-#         }
-#         """
-        
-#         calendar(
-#             events=calendar_events,
-#             options=calendar_options,
-#             custom_css=custom_css,
-#             key="planning_calendar",
+#     for _, row in df_planned.iterrows():
+#         st.markdown(
+#             f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
+#             f"• {row['area']} — {row['assignment']}"
 #         )
 
+#     # -----------------------------------------------------
+#     # CALENDAR VIEW
+#     # -----------------------------------------------------
+#     st.markdown("### Calendar view of planned rounds")
 
+#     calendar_events = [
+#         {
+#             "title": f"{r['area']} – {r['assignment']}",
+#             "start": r["planned_date"].isoformat(),
+#             "allDay": True,
+#             "id": r["id"],
+#         }
+#         for r in rows
+#     ]
 
-        
-#         st.markdown("---")
+#     calendar_options = {
+#         "initialView": "dayGridMonth",
+#         "headerToolbar": {
+#             "left": "prev,next today",
+#             "center": "title",
+#             "right": "dayGridMonth,timeGridWeek,listWeek",
+#         },
+#         "events": calendar_events,
+#         "height": 650,
+#     }
 
-#         st.subheader("Edit, delete or confirm a planned round")
+#     custom_css = """
+#         .fc-daygrid-event .fc-event-title { white-space: normal; }
+#         .fc-daygrid-event { min-height: 2.2em; }
+#     """
 
-#         labels = [
-#             f"{row['planned_date'].isoformat()} — {row['area']} — {row['assignment']} ({row['relative']})"
-#             for _, row in df_planned.iterrows()
-#         ]
+#     # IMPORTANT: use a unique key to avoid collisions
+#     calendar(
+#         events=calendar_events,
+#         options=calendar_options,
+#         custom_css=custom_css,
+#         key="fw_calendar_clicks",
+#     )
 
-#         selected_label = st.selectbox("Select planned round", labels)
-#         idx = labels.index(selected_label)
-#         row = df_planned.iloc[idx]
+#     st.markdown("---")
 
-#         current_assignment = next(a for a in fieldwork_assignments if a["id"] == row["assignment_id"])
-#         current_area = next(a for a in areas if a["id"] == row["area_id"])
+#     # -----------------------------------------------------
+#     # HANDLE CALENDAR CLICK
+#     # -----------------------------------------------------
+#     clicked = st.session_state.get("fw_calendar_clicks")
 
-#         col1, col2, col3 = st.columns(3)
+#     # clicked is expected to be something like:
+#     # {"event": {"id": ..., "title": ..., ...}, "jsEvent": {...}, ...}
+#     if not clicked or "event" not in clicked or "id" not in clicked["event"]:
+#         st.info("Click a planned round in the calendar to edit, delete or confirm it.")
+#         st.stop()
 
-#         with col1:
-#             new_date = st.date_input(
-#                 "New planned date",
-#                 value=row["planned_date"],
-#                 key=f"edit_planned_date_{row['id']}"
-#             )
+#     selected_id = clicked["event"]["id"]
+#     row = next(r for r in rows if r["id"] == selected_id)
 
-#         with col2:
+#     st.subheader("Selected planned round")
+#     st.write(
+#         f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} "
+#         f"({row['relative']})"
+#     )
+
+#     # -----------------------------------------------------
+#     # DIALOGS
+#     # -----------------------------------------------------
+
+#     @st.dialog("Confirm deletion")
+#     def delete_dialog():
+#         st.image(
+#             "https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png",
+#             width=220,
+#         )
+#         st.write(
+#             f"Are you sure you want to delete the planned round on "
+#             f"**{row['planned_date']}** for **{row['area']} – {row['assignment']}**?"
+#         )
+#         col_d1, col_d2 = st.columns(2)
+#         with col_d1:
+#             if st.button("Yes, delete", type="primary"):
+#                 supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+#                 st.success("Planned round deleted.")
+#                 st.rerun()
+#         with col_d2:
+#             st.button("Cancel")
+
+#     @st.dialog("Edit planned round")
+#     def edit_dialog():
+#         # Pre-select current assignment and area
+#         current_assignment = next(
+#             a for a in fieldwork_assignments if a["id"] == row["assignment_id"]
+#         )
+#         current_area = next(
+#             a for a in areas if a["id"] == row["area_id"]
+#         )
+
+#         with st.form("edit_form"):
+#             new_date = st.date_input("New planned date", value=row["planned_date"])
 #             new_assignment = st.selectbox(
 #                 "New assignment (Fieldwork only)",
 #                 fieldwork_assignments,
 #                 index=fieldwork_assignments.index(current_assignment),
 #                 format_func=lambda a: a["name"],
-#                 key=f"edit_planned_assignment_{row['id']}"
 #             )
-
-#         with col3:
 #             new_area = st.selectbox(
 #                 "New area",
 #                 areas,
 #                 index=areas.index(current_area),
 #                 format_func=lambda a: a["name"],
-#                 key=f"edit_planned_area_{row['id']}"
 #             )
 
-#         col_a, col_b, col_c = st.columns(3)
-
-#         with col_a:
-#             if st.button("Save changes", key=f"btn_save_planning_{row['id']}"):
+#             submitted = st.form_submit_button("Save changes")
+#             if submitted:
 #                 supabase.table("planned_rounds").update({
 #                     "planned_date": new_date.isoformat(),
 #                     "assignment_id": new_assignment["id"],
-#                     "area_id": new_area["id"]
+#                     "area_id": new_area["id"],
 #                 }).eq("id", row["id"]).execute()
 #                 st.success("Planned round updated.")
-#                 refresh()
+#                 st.rerun()
 
-#         with col_b:
-#             if st.button("Delete planning", key=f"btn_delete_planning_{row['id']}"):
-#                 supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-#                 st.warning("Planned round deleted.")
-#                 refresh()
+#     # -----------------------------------------------------
+#     # ACTION BUTTONS
+#     # -----------------------------------------------------
+#     col_a, col_b, col_c = st.columns(3)
 
-#         with col_c:
-#             if st.button("Confirm done", key=f"btn_confirm_planning_{row['id']}"):
-#                 supabase.table("rounds").insert({
-#                     "assignment_id": row["assignment_id"],
-#                     "area_id": row["area_id"],
-#                     "work_date": row["planned_date"].isoformat(),
-#                     "hours_worked": None,
-#                     "travel_cost": None
-#                 }).execute()
+#     with col_a:
+#         if st.button("Edit"):
+#             edit_dialog()
 
-#                 supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+#     with col_b:
+#         if st.button("Delete"):
+#             delete_dialog()
 
-#                 st.success("Planned round confirmed and moved to rounds.")
-#                 refresh()
+#     with col_c:
+#         if st.button("Confirm done"):
+#             supabase.table("rounds").insert({
+#                 "assignment_id": row["assignment_id"],
+#                 "area_id": row["area_id"],
+#                 "work_date": row["planned_date"].isoformat(),
+#                 "hours_worked": None,
+#                 "travel_cost": None,
+#             }).execute()
+
+#             supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+
+#             st.success("Planned round confirmed and moved to rounds.")
+#             st.rerun()
+
+# =========================================================
+# PAGE — PLANNING (FIELDWORK ONLY)
+# =========================================================
+elif subpage == "Planning":
+    st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
+
+    assignments = get_assignments()
+    areas = get_areas()
+
+    if not assignments or not areas:
+        st.info("You need at least one assignment and one area to plan rounds.")
+        st.stop()
+
+    fieldwork_assignments = [a for a in assignments if a["type"] == "Fieldwork"]
+
+    if not fieldwork_assignments:
+        st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
+        st.stop()
+
+    st.subheader("Plan a new fieldwork round")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        planned_date = st.date_input("Planned date", value=date.today())
+
+    with col2:
+        selected_assignment = st.selectbox(
+            "Assignment (Fieldwork only)",
+            fieldwork_assignments,
+            format_func=lambda a: a["name"]
+        )
+
+    with col3:
+        selected_area = st.selectbox(
+            "Area",
+            areas,
+            format_func=lambda a: a["name"]
+        )
+
+    if st.button("Save planning"):
+        supabase.table("planned_rounds").insert({
+            "assignment_id": selected_assignment["id"],
+            "area_id": selected_area["id"],
+            "planned_date": planned_date.isoformat()
+        }).execute()
+        st.success("Planned round saved.")
+        refresh()
+
+    st.markdown("---")
+
+    st.subheader("Upcoming planned rounds")
+
+    planned = get_planned_rounds()
+
+    if not planned:
+        st.info("No planned rounds yet.")
+    else:
+        rows = []
+        today = date.today()
+
+        for r in planned:
+            pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
+            diff = (pd_date - today).days
+
+            if diff > 0:
+                rel = f"in {diff} days"
+            elif diff == 0:
+                rel = "today"
+            else:
+                rel = f"{abs(diff)} days ago"
+
+            rows.append({
+                "id": r["id"],
+                "planned_date": pd_date,
+                "assignment_id": r["assignment_id"],
+                "area_id": r["area_id"],
+                "assignment": r["assignments"]["name"] if r["assignments"] else None,
+                "area": r["areas"]["name"] if r["areas"] else None,
+                "days_diff": diff,
+                "relative": rel
+            })
+
+        df_planned = pd.DataFrame(rows).sort_values("planned_date")
+
+        # List view
+        for _, row in df_planned.iterrows():
+            st.markdown(
+                f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
+                f"• {row['area']} — {row['assignment']}"
+            )
+
+
+        from streamlit_calendar import calendar
+        
+        st.markdown("### Calendar view of planned rounds")
+        
+        calendar_events = []
+        for r in rows:
+            calendar_events.append({
+                "title": f"{r['area']} – {r['assignment']}",
+                "start": r["planned_date"].isoformat(),
+                "allDay": True,
+                "id": r["id"],
+            })
+        
+        calendar_options = {
+            "initialView": "dayGridMonth",
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,listWeek",
+            },
+            "events": calendar_events,
+            "height": 650,
+        }
+        
+        custom_css = """
+        /* Allow long titles to wrap instead of being cut off */
+        .fc-daygrid-event .fc-event-title {
+            white-space: normal;
+        }
+        
+        /* Optional: make events taller so full text fits more often */
+        .fc-daygrid-event {
+            min-height: 2.2em;
+        }
+        """
+        
+        calendar(
+            events=calendar_events,
+            options=calendar_options,
+            custom_css=custom_css,
+            key="planning_calendar",
+        )
+
+
+
+        
+        st.markdown("---")
+
+        st.subheader("Edit, delete or confirm a planned round")
+
+        labels = [
+            f"{row['planned_date'].isoformat()} — {row['area']} — {row['assignment']} ({row['relative']})"
+            for _, row in df_planned.iterrows()
+        ]
+
+        selected_label = st.selectbox("Select planned round", labels)
+        idx = labels.index(selected_label)
+        row = df_planned.iloc[idx]
+
+        current_assignment = next(a for a in fieldwork_assignments if a["id"] == row["assignment_id"])
+        current_area = next(a for a in areas if a["id"] == row["area_id"])
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            new_date = st.date_input(
+                "New planned date",
+                value=row["planned_date"],
+                key=f"edit_planned_date_{row['id']}"
+            )
+
+        with col2:
+            new_assignment = st.selectbox(
+                "New assignment (Fieldwork only)",
+                fieldwork_assignments,
+                index=fieldwork_assignments.index(current_assignment),
+                format_func=lambda a: a["name"],
+                key=f"edit_planned_assignment_{row['id']}"
+            )
+
+        with col3:
+            new_area = st.selectbox(
+                "New area",
+                areas,
+                index=areas.index(current_area),
+                format_func=lambda a: a["name"],
+                key=f"edit_planned_area_{row['id']}"
+            )
+
+        col_a, col_b, col_c = st.columns(3)
+
+        with col_a:
+            if st.button("Save changes", key=f"btn_save_planning_{row['id']}"):
+                supabase.table("planned_rounds").update({
+                    "planned_date": new_date.isoformat(),
+                    "assignment_id": new_assignment["id"],
+                    "area_id": new_area["id"]
+                }).eq("id", row["id"]).execute()
+                st.success("Planned round updated.")
+                refresh()
+
+        with col_b:
+            if st.button("Delete planning", key=f"btn_delete_planning_{row['id']}"):
+                supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+                st.warning("Planned round deleted.")
+                refresh()
+
+        with col_c:
+            if st.button("Confirm done", key=f"btn_confirm_planning_{row['id']}"):
+                supabase.table("rounds").insert({
+                    "assignment_id": row["assignment_id"],
+                    "area_id": row["area_id"],
+                    "work_date": row["planned_date"].isoformat(),
+                    "hours_worked": None,
+                    "travel_cost": None
+                }).execute()
+
+                supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+
+                st.success("Planned round confirmed and moved to rounds.")
+                refresh()
 
 
 
@@ -1114,217 +1114,217 @@ elif subpage == "Planning":
 
 #         st.markdown("---")
 
-# =========================================================
-# PAGE — PLANNING (FIELDWORK ONLY) — REWRITTEN WITH DIALOGS
-# =========================================================
-elif subpage == "Planning":
-    st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
+# # =========================================================
+# # PAGE — PLANNING (FIELDWORK ONLY) — REWRITTEN WITH DIALOGS
+# # =========================================================
+# elif subpage == "Planning":
+#     st.sidebar.image("https://copilot.microsoft.com/th/id/BCO.2d3fe0e2-f66f-41f7-bc5f-c4b3f53ee37e.png")
 
-    assignments = get_assignments()
-    areas = get_areas()
+#     assignments = get_assignments()
+#     areas = get_areas()
 
-    if not assignments or not areas:
-        st.info("You need at least one assignment and one area to plan rounds.")
-        st.stop()
+#     if not assignments or not areas:
+#         st.info("You need at least one assignment and one area to plan rounds.")
+#         st.stop()
 
-    fieldwork_assignments = [a for a in assignments if a["type"] == "Fieldwork"]
+#     fieldwork_assignments = [a for a in assignments if a["type"] == "Fieldwork"]
 
-    if not fieldwork_assignments:
-        st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
-        st.stop()
+#     if not fieldwork_assignments:
+#         st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
+#         st.stop()
 
-    st.subheader("Plan a new fieldwork round")
+#     st.subheader("Plan a new fieldwork round")
 
-    col1, col2, col3 = st.columns(3)
+#     col1, col2, col3 = st.columns(3)
 
-    with col1:
-        planned_date = st.date_input("Planned date", value=date.today())
+#     with col1:
+#         planned_date = st.date_input("Planned date", value=date.today())
 
-    with col2:
-        selected_assignment = st.selectbox(
-            "Assignment (Fieldwork only)",
-            fieldwork_assignments,
-            format_func=lambda a: a["name"]
-        )
+#     with col2:
+#         selected_assignment = st.selectbox(
+#             "Assignment (Fieldwork only)",
+#             fieldwork_assignments,
+#             format_func=lambda a: a["name"]
+#         )
 
-    with col3:
-        selected_area = st.selectbox(
-            "Area",
-            areas,
-            format_func=lambda a: a["name"]
-        )
+#     with col3:
+#         selected_area = st.selectbox(
+#             "Area",
+#             areas,
+#             format_func=lambda a: a["name"]
+#         )
 
-    if st.button("Save planning"):
-        supabase.table("planned_rounds").insert({
-            "assignment_id": selected_assignment["id"],
-            "area_id": selected_area["id"],
-            "planned_date": planned_date.isoformat()
-        }).execute()
-        st.success("Planned round saved.")
-        st.rerun()
+#     if st.button("Save planning"):
+#         supabase.table("planned_rounds").insert({
+#             "assignment_id": selected_assignment["id"],
+#             "area_id": selected_area["id"],
+#             "planned_date": planned_date.isoformat()
+#         }).execute()
+#         st.success("Planned round saved.")
+#         st.rerun()
 
-    st.markdown("---")
+#     st.markdown("---")
 
-    # =========================================================
-    # UPCOMING PLANNED ROUNDS
-    # =========================================================
+#     # =========================================================
+#     # UPCOMING PLANNED ROUNDS
+#     # =========================================================
 
-    st.subheader("Upcoming planned rounds")
+#     st.subheader("Upcoming planned rounds")
 
-    planned = get_planned_rounds()
+#     planned = get_planned_rounds()
 
-    if not planned:
-        st.info("No planned rounds yet.")
-        st.stop()
+#     if not planned:
+#         st.info("No planned rounds yet.")
+#         st.stop()
 
-    rows = []
-    today = date.today()
+#     rows = []
+#     today = date.today()
 
-    for r in planned:
-        pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
-        diff = (pd_date - today).days
+#     for r in planned:
+#         pd_date = datetime.strptime(r["planned_date"], "%Y-%m-%d").date()
+#         diff = (pd_date - today).days
 
-        if diff > 0:
-            rel = f"in {diff} days"
-        elif diff == 0:
-            rel = "today"
-        else:
-            rel = f"{abs(diff)} days ago"
+#         if diff > 0:
+#             rel = f"in {diff} days"
+#         elif diff == 0:
+#             rel = "today"
+#         else:
+#             rel = f"{abs(diff)} days ago"
 
-        rows.append({
-            "id": r["id"],
-            "planned_date": pd_date,
-            "assignment_id": r["assignment_id"],
-            "area_id": r["area_id"],
-            "assignment": r["assignments"]["name"] if r["assignments"] else None,
-            "area": r["areas"]["name"] if r["areas"] else None,
-            "days_diff": diff,
-            "relative": rel
-        })
+#         rows.append({
+#             "id": r["id"],
+#             "planned_date": pd_date,
+#             "assignment_id": r["assignment_id"],
+#             "area_id": r["area_id"],
+#             "assignment": r["assignments"]["name"] if r["assignments"] else None,
+#             "area": r["areas"]["name"] if r["areas"] else None,
+#             "days_diff": diff,
+#             "relative": rel
+#         })
 
-    df_planned = pd.DataFrame(rows).sort_values("planned_date")
+#     df_planned = pd.DataFrame(rows).sort_values("planned_date")
 
-    for _, row in df_planned.iterrows():
-        st.markdown(
-            f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
-            f"• {row['area']} — {row['assignment']}"
-        )
+#     for _, row in df_planned.iterrows():
+#         st.markdown(
+#             f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
+#             f"• {row['area']} — {row['assignment']}"
+#         )
 
-    # =========================================================
-    # CALENDAR VIEW
-    # =========================================================
+#     # =========================================================
+#     # CALENDAR VIEW
+#     # =========================================================
 
-    from streamlit_calendar import calendar
+#     from streamlit_calendar import calendar
 
-    st.markdown("### Calendar view of planned rounds")
+#     st.markdown("### Calendar view of planned rounds")
 
-    calendar_events = [
-        {
-            "title": f"{r['area']} – {r['assignment']}",
-            "start": r["planned_date"].isoformat(),
-            "allDay": True,
-            "id": r["id"],
-        }
-        for r in rows
-    ]
+#     calendar_events = [
+#         {
+#             "title": f"{r['area']} – {r['assignment']}",
+#             "start": r["planned_date"].isoformat(),
+#             "allDay": True,
+#             "id": r["id"],
+#         }
+#         for r in rows
+#     ]
 
-    calendar_options = {
-        "initialView": "dayGridMonth",
-        "headerToolbar": {
-            "left": "prev,next today",
-            "center": "title",
-            "right": "dayGridMonth,timeGridWeek,listWeek",
-        },
-        "events": calendar_events,
-        "height": 650,
-    }
+#     calendar_options = {
+#         "initialView": "dayGridMonth",
+#         "headerToolbar": {
+#             "left": "prev,next today",
+#             "center": "title",
+#             "right": "dayGridMonth,timeGridWeek,listWeek",
+#         },
+#         "events": calendar_events,
+#         "height": 650,
+#     }
 
-    custom_css = """
-        .fc-daygrid-event .fc-event-title { white-space: normal; }
-        .fc-daygrid-event { min-height: 2.2em; }
-    """
+#     custom_css = """
+#         .fc-daygrid-event .fc-event-title { white-space: normal; }
+#         .fc-daygrid-event { min-height: 2.2em; }
+#     """
 
-    calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="planning_calendar")
+#     calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="planning_calendar")
 
-    st.markdown("---")
+#     st.markdown("---")
 
-    # =========================================================
-    # HANDLE CALENDAR CLICK
-    # =========================================================
+#     # =========================================================
+#     # HANDLE CALENDAR CLICK
+#     # =========================================================
 
-    clicked = st.session_state.get("planning_calendar")
+#     clicked = st.session_state.get("planning_calendar")
 
-    if not clicked:
-        st.info("Click a planned round in the calendar to edit, delete or confirm it.")
-        st.stop()
+#     if not clicked:
+#         st.info("Click a planned round in the calendar to edit, delete or confirm it.")
+#         st.stop()
 
-    selected_id = clicked["event"]["id"]
-    row = next(r for r in rows if r["id"] == selected_id)
+#     selected_id = clicked["event"]["id"]
+#     row = next(r for r in rows if r["id"] == selected_id)
 
-    st.subheader("Selected planned round")
-    st.write(f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} ({row['relative']})")
+#     st.subheader("Selected planned round")
+#     st.write(f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} ({row['relative']})")
 
-    # =========================================================
-    # DELETE DIALOG
-    # =========================================================
+#     # =========================================================
+#     # DELETE DIALOG
+#     # =========================================================
 
-    @st.dialog("Confirm deletion")
-    def delete_dialog():
-        st.image("https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png", width=200)
-        st.write(f"Are you sure you want to delete the planned round on **{row['planned_date']}**?")
-        if st.button("Yes, delete"):
-            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-            st.success("Deleted.")
-            st.rerun()
+#     @st.dialog("Confirm deletion")
+#     def delete_dialog():
+#         st.image("https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png", width=200)
+#         st.write(f"Are you sure you want to delete the planned round on **{row['planned_date']}**?")
+#         if st.button("Yes, delete"):
+#             supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+#             st.success("Deleted.")
+#             st.rerun()
 
-    # =========================================================
-    # EDIT DIALOG
-    # =========================================================
+#     # =========================================================
+#     # EDIT DIALOG
+#     # =========================================================
 
-    @st.dialog("Edit planned round")
-    def edit_dialog():
-        with st.form("edit_form"):
-            new_date = st.date_input("New date", value=row["planned_date"])
-            new_assignment = st.selectbox("Assignment", fieldwork_assignments, format_func=lambda a: a["name"])
-            new_area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
+#     @st.dialog("Edit planned round")
+#     def edit_dialog():
+#         with st.form("edit_form"):
+#             new_date = st.date_input("New date", value=row["planned_date"])
+#             new_assignment = st.selectbox("Assignment", fieldwork_assignments, format_func=lambda a: a["name"])
+#             new_area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
 
-            if st.form_submit_button("Save changes"):
-                supabase.table("planned_rounds").update({
-                    "planned_date": new_date.isoformat(),
-                    "assignment_id": new_assignment["id"],
-                    "area_id": new_area["id"]
-                }).eq("id", row["id"]).execute()
-                st.success("Updated.")
-                st.rerun()
+#             if st.form_submit_button("Save changes"):
+#                 supabase.table("planned_rounds").update({
+#                     "planned_date": new_date.isoformat(),
+#                     "assignment_id": new_assignment["id"],
+#                     "area_id": new_area["id"]
+#                 }).eq("id", row["id"]).execute()
+#                 st.success("Updated.")
+#                 st.rerun()
 
-    # =========================================================
-    # ACTION BUTTONS
-    # =========================================================
+#     # =========================================================
+#     # ACTION BUTTONS
+#     # =========================================================
 
-    col1, col2, col3 = st.columns(3)
+#     col1, col2, col3 = st.columns(3)
 
-    with col1:
-        if st.button("Edit"):
-            edit_dialog()
+#     with col1:
+#         if st.button("Edit"):
+#             edit_dialog()
 
-    with col2:
-        if st.button("Delete"):
-            delete_dialog()
+#     with col2:
+#         if st.button("Delete"):
+#             delete_dialog()
 
-    with col3:
-        if st.button("Confirm done"):
-            supabase.table("rounds").insert({
-                "assignment_id": row["assignment_id"],
-                "area_id": row["area_id"],
-                "work_date": row["planned_date"].isoformat(),
-                "hours_worked": None,
-                "travel_cost": None
-            }).execute()
+#     with col3:
+#         if st.button("Confirm done"):
+#             supabase.table("rounds").insert({
+#                 "assignment_id": row["assignment_id"],
+#                 "area_id": row["area_id"],
+#                 "work_date": row["planned_date"].isoformat(),
+#                 "hours_worked": None,
+#                 "travel_cost": None
+#             }).execute()
 
-            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+#             supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
 
-            st.success("Confirmed and moved to rounds.")
-            st.rerun()
+#             st.success("Confirmed and moved to rounds.")
+#             st.rerun()
 
 
         # # ---------------------------------------------------------
@@ -1611,332 +1611,332 @@ elif subpage == "Planning":
         #         mime="application/pdf"
         #     )
 
-        # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
-        # ---------------------------------------------------------
-        st.subheader("Export invoice as PDF")
+# ---------------------------------------------------------
+# PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
+# ---------------------------------------------------------
+st.subheader("Export invoice as PDF")
 
-        if st.button("Generate PDF"):
-            import random
-            import io
-            from reportlab.lib import colors
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.units import mm
-            from reportlab.platypus import (
-                SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-            )
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+if st.button("Generate PDF"):
+    import random
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-            bedrijf = st.secrets["bedrijf"]
+    bedrijf = st.secrets["bedrijf"]
 
-            eigen_naam = bedrijf["naam"]
-            eigen_adres = bedrijf["adres"]
-            eigen_postcode = bedrijf["postcode"]
-            eigen_stad = bedrijf["stad"]
-            eigen_mobiel = bedrijf["mobiel"]
-            eigen_email = bedrijf["email"]
-            eigen_kvk = bedrijf["kvk"]
-            eigen_btw = bedrijf["btw"]
-            eigen_iban = bedrijf["iban"]
+    eigen_naam = bedrijf["naam"]
+    eigen_adres = bedrijf["adres"]
+    eigen_postcode = bedrijf["postcode"]
+    eigen_stad = bedrijf["stad"]
+    eigen_mobiel = bedrijf["mobiel"]
+    eigen_email = bedrijf["email"]
+    eigen_kvk = bedrijf["kvk"]
+    eigen_btw = bedrijf["btw"]
+    eigen_iban = bedrijf["iban"]
 
-            if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
-                st.error("Please fill in all client fields before generating the invoice.")
-                st.stop()
+    if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
+        st.error("Please fill in all client fields before generating the invoice.")
+        st.stop()
 
-            vandaag = datetime.today()
-            factuurdatum = vandaag.strftime("%d-%m-%Y")
-            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
+    vandaag = datetime.today()
+    factuurdatum = vandaag.strftime("%d-%m-%Y")
+    factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
 
-            # -----------------------------------------------------
-            # PREPARE DATA
-            # -----------------------------------------------------
-            df_assign = df_month[df_month["type"] != "Travel"].copy()
-            df_assign["hours"] = df_assign.apply(
-                lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
-                axis=1
-            )
+    # -----------------------------------------------------
+    # PREPARE DATA
+    # -----------------------------------------------------
+    df_assign = df_month[df_month["type"] != "Travel"].copy()
+    df_assign["hours"] = df_assign.apply(
+        lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+        axis=1
+    )
 
-            assign_summary = (
-                df_assign.groupby("assignment")
-                .agg(
-                    total_hours=("hours", "sum"),
-                    hourly_rate=("rate", "first"),
-                    total_amount=("amount", "sum")
-                )
-                .reset_index()
-            )
+    assign_summary = (
+        df_assign.groupby("assignment")
+        .agg(
+            total_hours=("hours", "sum"),
+            hourly_rate=("rate", "first"),
+            total_amount=("amount", "sum")
+        )
+        .reset_index()
+    )
 
-            travel_summary = (
-                df_month[df_month["type"] == "Travel"]
-                .groupby("area")["travel_cost"]
-                .sum()
-                .reset_index()
-            )
+    travel_summary = (
+        df_month[df_month["type"] == "Travel"]
+        .groupby("area")["travel_cost"]
+        .sum()
+        .reset_index()
+    )
 
-            df_area = df_month[df_month["type"] != "Travel"].copy()
-            df_area["hours"] = df_area.apply(
-                lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
-                axis=1
-            )
+    df_area = df_month[df_month["type"] != "Travel"].copy()
+    df_area["hours"] = df_area.apply(
+        lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+        axis=1
+    )
 
-            area_summary = (
-                df_area.groupby(["area", "assignment"])
-                .agg(
-                    total_hours=("hours", "sum"),
-                    hourly_rate=("rate", "first"),
-                    total_amount=("amount", "sum")
-                )
-                .reset_index()
-            )
+    area_summary = (
+        df_area.groupby(["area", "assignment"])
+        .agg(
+            total_hours=("hours", "sum"),
+            hourly_rate=("rate", "first"),
+            total_amount=("amount", "sum")
+        )
+        .reset_index()
+    )
 
-            travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
-            final_total = total + travel_total
+    travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
+    final_total = total + travel_total
 
-            # -----------------------------------------------------
-            # PDF BUILD
-            # -----------------------------------------------------
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(
-                buffer,
-                pagesize=A4,
-                leftMargin=20 * mm,
-                rightMargin=20 * mm,
-                topMargin=20 * mm,
-                bottomMargin=20 * mm,
-            )
+    # -----------------------------------------------------
+    # PDF BUILD
+    # -----------------------------------------------------
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=20 * mm,
+        rightMargin=20 * mm,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+    )
 
-            styles = getSampleStyleSheet()
-            normal = styles["Normal"]
-            normal.italic = 0
+    styles = getSampleStyleSheet()
+    normal = styles["Normal"]
+    normal.italic = 0
 
-            body = styles["BodyText"]
-            body.italic = 0
+    body = styles["BodyText"]
+    body.italic = 0
 
-            title_style = ParagraphStyle(
-                "title_style",
-                parent=styles["Heading1"],
-                fontSize=20,
-                textColor=colors.blue,
-                alignment=2,  # right
-                italic=0
-            )
+    title_style = ParagraphStyle(
+        "title_style",
+        parent=styles["Heading1"],
+        fontSize=20,
+        textColor=colors.blue,
+        alignment=2,  # right
+        italic=0
+    )
 
-            right_text = ParagraphStyle(
-                "right_text",
-                parent=normal,
-                alignment=2,
-                italic=0
-            )
+    right_text = ParagraphStyle(
+        "right_text",
+        parent=normal,
+        alignment=2,
+        italic=0
+    )
 
-            bold = ParagraphStyle(
-                "bold",
-                parent=styles["Heading4"],
-                fontSize=12,
-                spaceAfter=4,
-                italic=0
-            )
+    bold = ParagraphStyle(
+        "bold",
+        parent=styles["Heading4"],
+        fontSize=12,
+        spaceAfter=4,
+        italic=0
+    )
 
-            heading_center = ParagraphStyle(
-                "heading_center",
-                parent=styles["Heading1"],
-                fontSize=20,
-                alignment=1,  # center
-                italic=0,
-                textColor=colors.blue,
-            )
+    heading_center = ParagraphStyle(
+        "heading_center",
+        parent=styles["Heading1"],
+        fontSize=20,
+        alignment=1,  # center
+        italic=0,
+        textColor=colors.blue,
+    )
 
-            indent1 = ParagraphStyle(
-                "indent1",
-                parent=normal,
-                leftIndent=15,
-                italic=0
-            )
-            indent2 = ParagraphStyle(
-                "indent2",
-                parent=normal,
-                leftIndent=30,
-                italic=0
-            )
+    indent1 = ParagraphStyle(
+        "indent1",
+        parent=normal,
+        leftIndent=15,
+        italic=0
+    )
+    indent2 = ParagraphStyle(
+        "indent2",
+        parent=normal,
+        leftIndent=30,
+        italic=0
+    )
 
-            red_total = ParagraphStyle(
-                "red_total",
-                parent=right_text,
-                textColor=colors.red,
-                fontSize=12,
-                italic=0
-            )
+    red_total = ParagraphStyle(
+        "red_total",
+        parent=right_text,
+        textColor=colors.red,
+        fontSize=12,
+        italic=0
+    )
 
-            story = []
+    story = []
 
-            # -----------------------------------------------------
-            # PAGE 1 HEADER
-            # -----------------------------------------------------
-            story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
-            story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", right_text))
-            story.append(Paragraph(f"Datum: {factuurdatum}", right_text))
-            story.append(Spacer(1, 12))
+    # -----------------------------------------------------
+    # PAGE 1 HEADER
+    # -----------------------------------------------------
+    story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
+    story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", right_text))
+    story.append(Paragraph(f"Datum: {factuurdatum}", right_text))
+    story.append(Spacer(1, 12))
 
-            # OPDRACHTGEVER
-            story.append(Paragraph("<b>Opdrachtgever</b>", bold))
-            story.append(Paragraph(klant_naam, normal))
-            story.append(Paragraph(klant_adres, normal))
-            story.append(Paragraph(f"{klant_postcode} {klant_stad}", normal))
-            story.append(Spacer(1, 12))
+    # OPDRACHTGEVER
+    story.append(Paragraph("<b>Opdrachtgever</b>", bold))
+    story.append(Paragraph(klant_naam, normal))
+    story.append(Paragraph(klant_adres, normal))
+    story.append(Paragraph(f"{klant_postcode} {klant_stad}", normal))
+    story.append(Spacer(1, 12))
 
-            # OPDRACHTNEMER
-            story.append(Paragraph("<b>Opdrachtnemer</b>", bold))
-            story.append(Paragraph(eigen_naam, normal))
-            story.append(Paragraph(eigen_adres, normal))
-            story.append(Paragraph(f"{eigen_postcode} {eigen_stad}", normal))
-            story.append(Paragraph(f"Telefoon: {eigen_mobiel}", normal))
-            story.append(Paragraph(f"E-mail: {eigen_email}", normal))
-            story.append(Paragraph(f"KvK: {eigen_kvk}", normal))
-            story.append(Paragraph(f"BTW: {eigen_btw}", normal))
-            story.append(Paragraph(f"IBAN: {eigen_iban}", normal))
-            story.append(Spacer(1, 18))
+    # OPDRACHTNEMER
+    story.append(Paragraph("<b>Opdrachtnemer</b>", bold))
+    story.append(Paragraph(eigen_naam, normal))
+    story.append(Paragraph(eigen_adres, normal))
+    story.append(Paragraph(f"{eigen_postcode} {eigen_stad}", normal))
+    story.append(Paragraph(f"Telefoon: {eigen_mobiel}", normal))
+    story.append(Paragraph(f"E-mail: {eigen_email}", normal))
+    story.append(Paragraph(f"KvK: {eigen_kvk}", normal))
+    story.append(Paragraph(f"BTW: {eigen_btw}", normal))
+    story.append(Paragraph(f"IBAN: {eigen_iban}", normal))
+    story.append(Spacer(1, 18))
 
-            # -----------------------------------------------------
-            # TABLE 1 — WORK SUMMARY
-            # -----------------------------------------------------
-            story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
+    # -----------------------------------------------------
+    # TABLE 1 — WORK SUMMARY
+    # -----------------------------------------------------
+    story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
+    story.append(Spacer(1, 6))
+
+    table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
+    for _, row in assign_summary.iterrows():
+        table1_data.append([
+            row["assignment"],
+            f"{row['total_hours']:.2f}",
+            f"{row['hourly_rate']:,.2f}",
+            f"{row['total_amount']:,.2f}",
+        ])
+
+    table1 = Table(table1_data, colWidths=[180, 60, 80, 80], hAlign="LEFT")
+    table1.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(table1)
+    story.append(Spacer(1, 18))
+
+    # -----------------------------------------------------
+    # TABLE 2 — TRAVEL COSTS
+    # -----------------------------------------------------
+    story.append(Paragraph("<b>Reiskosten</b>", bold))
+    story.append(Spacer(1, 6))
+
+    if travel_summary.empty:
+        story.append(Paragraph("Geen reiskosten in deze periode.", normal))
+    else:
+        travel_data = [["Gebied", "Bedrag (€)"]]
+        for _, row in travel_summary.iterrows():
+            travel_data.append([
+                row["area"],
+                f"{row['travel_cost']:,.2f}",
+            ])
+
+        table2 = Table(travel_data, colWidths=[220, 100], hAlign="LEFT")
+        table2.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(table2)
+
+    story.append(Spacer(1, 18))
+
+    # -----------------------------------------------------
+    # PAGE BREAK
+    # -----------------------------------------------------
+    story.append(PageBreak())
+
+    # -----------------------------------------------------
+    # PAGE 2 — AREA SUMMARY (LIST, NOT ONE PER PAGE)
+    # -----------------------------------------------------
+    story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading_center))
+    story.append(Spacer(1, 12))
+
+    current_area = None
+    for _, row in area_summary.iterrows():
+        area = row["area"]
+
+        if area != current_area:
+            story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
             story.append(Spacer(1, 6))
+            current_area = area
 
-            table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
-            for _, row in assign_summary.iterrows():
-                table1_data.append([
-                    row["assignment"],
-                    f"{row['total_hours']:.2f}",
-                    f"{row['hourly_rate']:,.2f}",
-                    f"{row['total_amount']:,.2f}",
-                ])
+        story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent1))
+        story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent2))
+        story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent2))
+        story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent2))
+        story.append(Spacer(1, 10))
 
-            table1 = Table(table1_data, colWidths=[180, 60, 80, 80], hAlign="LEFT")
-            table1.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ]))
-            story.append(table1)
-            story.append(Spacer(1, 18))
+    # -----------------------------------------------------
+    # FOOTER + FIXED TOTALS ON PAGE 1
+    # -----------------------------------------------------
+    def first_page(canvas, doc_obj):
+        canvas.saveState()
+    
+        # ---------------------------------------------------------
+        # FOOTER (with bold "14 dagen")
+        # ---------------------------------------------------------
+        canvas.setFont("Helvetica", 7)
+        x = doc_obj.leftMargin
+        y = 12 * mm
+        canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
+        canvas.setFont("Helvetica-Bold", 7)
+        canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
+        canvas.setFont("Helvetica", 7)
+    
+        # ---------------------------------------------------------
+        # TOTALS BOX (shaded + horizontal line)
+        # ---------------------------------------------------------
+        tx = doc_obj.leftMargin + doc_obj.width
+        box_top = 65 * mm
+        box_bottom = 35 * mm
+        box_left = doc_obj.leftMargin + 60
+        box_right = doc_obj.leftMargin + doc_obj.width
+    
 
-            # -----------------------------------------------------
-            # TABLE 2 — TRAVEL COSTS
-            # -----------------------------------------------------
-            story.append(Paragraph("<b>Reiskosten</b>", bold))
-            story.append(Spacer(1, 6))
-
-            if travel_summary.empty:
-                story.append(Paragraph("Geen reiskosten in deze periode.", normal))
-            else:
-                travel_data = [["Gebied", "Bedrag (€)"]]
-                for _, row in travel_summary.iterrows():
-                    travel_data.append([
-                        row["area"],
-                        f"{row['travel_cost']:,.2f}",
-                    ])
-
-                table2 = Table(travel_data, colWidths=[220, 100], hAlign="LEFT")
-                table2.setStyle(TableStyle([
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ]))
-                story.append(table2)
-
-            story.append(Spacer(1, 18))
-
-            # -----------------------------------------------------
-            # PAGE BREAK
-            # -----------------------------------------------------
-            story.append(PageBreak())
-
-            # -----------------------------------------------------
-            # PAGE 2 — AREA SUMMARY (LIST, NOT ONE PER PAGE)
-            # -----------------------------------------------------
-            story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading_center))
-            story.append(Spacer(1, 12))
-
-            current_area = None
-            for _, row in area_summary.iterrows():
-                area = row["area"]
-
-                if area != current_area:
-                    story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
-                    story.append(Spacer(1, 6))
-                    current_area = area
-
-                story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent1))
-                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent2))
-                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent2))
-                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent2))
-                story.append(Spacer(1, 10))
-
-            # -----------------------------------------------------
-            # FOOTER + FIXED TOTALS ON PAGE 1
-            # -----------------------------------------------------
-            def first_page(canvas, doc_obj):
-                canvas.saveState()
-            
-                # ---------------------------------------------------------
-                # FOOTER (with bold "14 dagen")
-                # ---------------------------------------------------------
-                canvas.setFont("Helvetica", 7)
-                x = doc_obj.leftMargin
-                y = 12 * mm
-                canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
-                canvas.setFont("Helvetica-Bold", 7)
-                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
-                canvas.setFont("Helvetica", 7)
-            
-                # ---------------------------------------------------------
-                # TOTALS BOX (shaded + horizontal line)
-                # ---------------------------------------------------------
-                tx = doc_obj.leftMargin + doc_obj.width
-                box_top = 65 * mm
-                box_bottom = 35 * mm
-                box_left = doc_obj.leftMargin + 60
-                box_right = doc_obj.leftMargin + doc_obj.width
-            
-
-            
-                # ---------------------------------------------------------
-                # TOTALS TEXT (right aligned)
-                # ---------------------------------------------------------
-                canvas.setFillColor(colors.black)
-                canvas.setFont("Helvetica", 10)
-            
-                canvas.drawRightString(tx, box_top - 5, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
-                canvas.drawRightString(tx, box_top - 20, f"BTW 21%: € {vat:,.2f}")
-                canvas.drawRightString(tx, box_top - 35, f"Totaal (excl. reiskosten): € {total:,.2f}")
-            
-                # Space before Reiskosten + Eindtotaal group
-                canvas.drawRightString(tx, box_top - 55, f"Reiskosten [1]: € {travel_total:,.2f}")
-            
-                # Eindtotaal — bold, red, larger
-                canvas.setFont("Helvetica-Bold", 12)
-                canvas.setFillColor(colors.red)
-                canvas.drawRightString(tx, box_top - 75, f"Eindtotaal [2]: € {final_total:,.2f}")
-            
-                canvas.restoreState()
+    
+        # ---------------------------------------------------------
+        # TOTALS TEXT (right aligned)
+        # ---------------------------------------------------------
+        canvas.setFillColor(colors.black)
+        canvas.setFont("Helvetica", 10)
+    
+        canvas.drawRightString(tx, box_top - 5, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
+        canvas.drawRightString(tx, box_top - 20, f"BTW 21%: € {vat:,.2f}")
+        canvas.drawRightString(tx, box_top - 35, f"Totaal (excl. reiskosten): € {total:,.2f}")
+    
+        # Space before Reiskosten + Eindtotaal group
+        canvas.drawRightString(tx, box_top - 55, f"Reiskosten [1]: € {travel_total:,.2f}")
+    
+        # Eindtotaal — bold, red, larger
+        canvas.setFont("Helvetica-Bold", 12)
+        canvas.setFillColor(colors.red)
+        canvas.drawRightString(tx, box_top - 75, f"Eindtotaal [2]: € {final_total:,.2f}")
+    
+        canvas.restoreState()
 
 
 
-            def later_pages(canvas, doc_obj):
-                pass
+    def later_pages(canvas, doc_obj):
+        pass
 
-            doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
-            buffer.seek(0)
+    doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
+    buffer.seek(0)
 
-            st.download_button(
-                "Download PDF",
-                buffer,
-                file_name=f"factuur_{factuurnummer}.pdf",
-                mime="application/pdf",
-            )
+    st.download_button(
+        "Download PDF",
+        buffer,
+        file_name=f"factuur_{factuurnummer}.pdf",
+        mime="application/pdf",
+    )
 
 
 
