@@ -722,8 +722,13 @@ elif subpage == "Rounds Overview & Plot":
 #                 st.success("Planned round confirmed and moved to rounds.")
 #                 refresh()
 
+from datetime import date, datetime
+import pandas as pd
+import streamlit as st
+from streamlit_calendar import calendar
+
 # =========================================================
-# PAGE — PLANNING (FIELDWORK ONLY) — REWRITTEN WITH DIALOGS
+# PAGE — PLANNING (FIELDWORK ONLY) — FINAL VERSION
 # =========================================================
 
 elif subpage == "Planning":
@@ -742,6 +747,9 @@ elif subpage == "Planning":
         st.info("You have no Fieldwork assignments yet. Create one first in Work Setup → Assignments.")
         st.stop()
 
+    # -----------------------------------------------------
+    # PLAN A NEW ROUND
+    # -----------------------------------------------------
     st.subheader("Plan a new fieldwork round")
 
     col1, col2, col3 = st.columns(3)
@@ -774,10 +782,9 @@ elif subpage == "Planning":
 
     st.markdown("---")
 
-    # =========================================================
+    # -----------------------------------------------------
     # UPCOMING PLANNED ROUNDS
-    # =========================================================
-
+    # -----------------------------------------------------
     st.subheader("Upcoming planned rounds")
 
     planned = get_planned_rounds()
@@ -819,12 +826,9 @@ elif subpage == "Planning":
             f"• {row['area']} — {row['assignment']}"
         )
 
-    # =========================================================
+    # -----------------------------------------------------
     # CALENDAR VIEW
-    # =========================================================
-
-    from streamlit_calendar import calendar
-
+    # -----------------------------------------------------
     st.markdown("### Calendar view of planned rounds")
 
     calendar_events = [
@@ -853,17 +857,24 @@ elif subpage == "Planning":
         .fc-daygrid-event { min-height: 2.2em; }
     """
 
-    calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="planning_calendar")
+    # IMPORTANT: use a unique key to avoid collisions
+    calendar(
+        events=calendar_events,
+        options=calendar_options,
+        custom_css=custom_css,
+        key="fw_calendar_clicks",
+    )
 
     st.markdown("---")
 
-    # =========================================================
+    # -----------------------------------------------------
     # HANDLE CALENDAR CLICK
-    # =========================================================
+    # -----------------------------------------------------
+    clicked = st.session_state.get("fw_calendar_clicks")
 
-    clicked = st.session_state.get("planning_calendar")
-
-    if not clicked:
+    # clicked is expected to be something like:
+    # {"event": {"id": ..., "title": ..., ...}, "jsEvent": {...}, ...}
+    if not clicked or "event" not in clicked or "id" not in clicked["event"]:
         st.info("Click a planned round in the calendar to edit, delete or confirm it.")
         st.stop()
 
@@ -871,69 +882,24 @@ elif subpage == "Planning":
     row = next(r for r in rows if r["id"] == selected_id)
 
     st.subheader("Selected planned round")
-    st.write(f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} ({row['relative']})")
+    st.write(
+        f"📅 **{row['planned_date']}** — {row['area']} — {row['assignment']} "
+        f"({row['relative']})"
+    )
 
-    # =========================================================
-    # DELETE DIALOG
-    # =========================================================
+    # -----------------------------------------------------
+    # DIALOGS
+    # -----------------------------------------------------
 
     @st.dialog("Confirm deletion")
     def delete_dialog():
-        st.image("https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png", width=200)
-        st.write(f"Are you sure you want to delete the planned round on **{row['planned_date']}**?")
-        if st.button("Yes, delete"):
-            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-            st.success("Deleted.")
-            st.rerun()
-
-    # =========================================================
-    # EDIT DIALOG
-    # =========================================================
-
-    @st.dialog("Edit planned round")
-    def edit_dialog():
-        with st.form("edit_form"):
-            new_date = st.date_input("New date", value=row["planned_date"])
-            new_assignment = st.selectbox("Assignment", fieldwork_assignments, format_func=lambda a: a["name"])
-            new_area = st.selectbox("Area", areas, format_func=lambda a: a["name"])
-
-            if st.form_submit_button("Save changes"):
-                supabase.table("planned_rounds").update({
-                    "planned_date": new_date.isoformat(),
-                    "assignment_id": new_assignment["id"],
-                    "area_id": new_area["id"]
-                }).eq("id", row["id"]).execute()
-                st.success("Updated.")
-                st.rerun()
-
-    # =========================================================
-    # ACTION BUTTONS
-    # =========================================================
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if st.button("Edit"):
-            edit_dialog()
-
-    with col2:
-        if st.button("Delete"):
-            delete_dialog()
-
-    with col3:
-        if st.button("Confirm done"):
-            supabase.table("rounds").insert({
-                "assignment_id": row["assignment_id"],
-                "area_id": row["area_id"],
-                "work_date": row["planned_date"].isoformat(),
-                "hours_worked": None,
-                "travel_cost": None
-            }).execute()
-
-            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-
-            st.success("Confirmed and moved to rounds.")
-            st.rerun()
+        st.image(
+            "https://copilot.microsoft.com/th/id/OGC.1f3c8f8e-7d8c-4f9e-9e2e-4b3f8b8e1c2f.png",
+            width=220,
+        )
+        st.write(
+            f"Are you sure you want to delete the planned round on "
+            f"**{row['planned_date']}** for **
 
 
 # # ---------------------------------------------------------
