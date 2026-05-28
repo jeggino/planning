@@ -726,6 +726,11 @@ elif subpage == "Rounds Overview & Plot":
 
 
 
+from datetime import date, datetime
+import pandas as pd
+import streamlit as st
+from streamlit_calendar import calendar
+
 # =========================================================
 # PAGE — PLANNING (FIELDWORK ONLY) — FINAL VERSION
 # =========================================================
@@ -898,7 +903,80 @@ elif subpage == "Planning":
         )
         st.write(
             f"Are you sure you want to delete the planned round on "
-            f"**{row['planned_date']}** for **
+            f"**{row['planned_date']}** for **{row['area']} – {row['assignment']}**?"
+        )
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            if st.button("Yes, delete", type="primary"):
+                supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+                st.success("Planned round deleted.")
+                st.rerun()
+        with col_d2:
+            st.button("Cancel")
+
+    @st.dialog("Edit planned round")
+    def edit_dialog():
+        # Pre-select current assignment and area
+        current_assignment = next(
+            a for a in fieldwork_assignments if a["id"] == row["assignment_id"]
+        )
+        current_area = next(
+            a for a in areas if a["id"] == row["area_id"]
+        )
+
+        with st.form("edit_form"):
+            new_date = st.date_input("New planned date", value=row["planned_date"])
+            new_assignment = st.selectbox(
+                "New assignment (Fieldwork only)",
+                fieldwork_assignments,
+                index=fieldwork_assignments.index(current_assignment),
+                format_func=lambda a: a["name"],
+            )
+            new_area = st.selectbox(
+                "New area",
+                areas,
+                index=areas.index(current_area),
+                format_func=lambda a: a["name"],
+            )
+
+            submitted = st.form_submit_button("Save changes")
+            if submitted:
+                supabase.table("planned_rounds").update({
+                    "planned_date": new_date.isoformat(),
+                    "assignment_id": new_assignment["id"],
+                    "area_id": new_area["id"],
+                }).eq("id", row["id"]).execute()
+                st.success("Planned round updated.")
+                st.rerun()
+
+    # -----------------------------------------------------
+    # ACTION BUTTONS
+    # -----------------------------------------------------
+    col_a, col_b, col_c = st.columns(3)
+
+    with col_a:
+        if st.button("Edit"):
+            edit_dialog()
+
+    with col_b:
+        if st.button("Delete"):
+            delete_dialog()
+
+    with col_c:
+        if st.button("Confirm done"):
+            supabase.table("rounds").insert({
+                "assignment_id": row["assignment_id"],
+                "area_id": row["area_id"],
+                "work_date": row["planned_date"].isoformat(),
+                "hours_worked": None,
+                "travel_cost": None,
+            }).execute()
+
+            supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+
+            st.success("Planned round confirmed and moved to rounds.")
+            st.rerun()
+
 
 
 # # ---------------------------------------------------------
