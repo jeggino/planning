@@ -8,6 +8,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import io
 
+from streamlit_calendar import calendar
+
 # ---------------------------------------------------------
 # BASIC CONFIG
 # ---------------------------------------------------------
@@ -722,9 +724,7 @@ elif subpage == "Rounds Overview & Plot":
 #                 st.success("Planned round confirmed and moved to rounds.")
 #                 refresh()
 
-from datetime import date, datetime
-import pandas as pd
-from streamlit_calendar import calendar
+
 
 # =========================================================
 # PAGE — PLANNING (FIELDWORK ONLY) — FINAL VERSION
