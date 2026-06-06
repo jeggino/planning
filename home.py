@@ -1893,14 +1893,14 @@ elif subpage == "Monthly Earnings":
             normal = ParagraphStyle(
                 "normal",
                 parent=styles["Normal"],
-                leading=10
+                leading=12
             )
         
             small_normal = ParagraphStyle(
                 "small_normal",
                 parent=normal,
-                fontSize=8,
-                leading=9
+                fontSize=10,
+                leading=11
             )
         
             body = ParagraphStyle(
@@ -2006,7 +2006,7 @@ elif subpage == "Monthly Earnings":
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 6),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("TOPPADDING", (0, 0), (-1, -1), 0.5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
             ]))
@@ -2035,7 +2035,7 @@ elif subpage == "Monthly Earnings":
                     ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                     ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 6),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
                     ("TOPPADDING", (0, 0), (-1, -1), 0.5),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
                 ]))
