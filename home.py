@@ -1656,458 +1656,326 @@ elif subpage == "Planning":
 
 
 # ---------------------------------------------------------
-# PAGE — MONTHLY EARNINGS (UPDATED WITH TRAVEL COSTS)
+# PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
 # ---------------------------------------------------------
-elif subpage == "Monthly Earnings":
-    st.header("Monthly Earnings")
+st.subheader("Export invoice as PDF")
 
-    rounds = get_rounds()
-    if not rounds:
-        st.info("No rounds yet.")
-    else:
-        df = pd.DataFrame([
-            {
-                "date": datetime.strptime(r["work_date"], "%Y-%m-%d").date(),
-                "assignment": r["assignments"]["name"] if r["assignments"] else None,
-                "type": (
-                    r["assignments"]["type"]
-                    if r["assignments"]
-                    else ("Travel" if r["travel_cost"] else None)
-                ),
-                "area": r["areas"]["name"] if r["areas"] else None,
-                "hours_worked": r["hours_worked"],
-                "hours_per_round": r["assignments"]["hours_per_round"] if r["assignments"] else None,
-                "rate": r["assignments"]["hourly_rate"] if r["assignments"] else None,
-                "travel_cost": r["travel_cost"]
-            }
-            for r in rounds
+if st.button("Generate PDF"):
+    import random
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    bedrijf = st.secrets["bedrijf"]
+
+    eigen_naam = bedrijf["naam"]
+    eigen_adres = bedrijf["adres"]
+    eigen_postcode = bedrijf["postcode"]
+    eigen_stad = bedrijf["stad"]
+    eigen_mobiel = bedrijf["mobiel"]
+    eigen_email = bedrijf["email"]
+    eigen_kvk = bedrijf["kvk"]
+    eigen_btw = bedrijf["btw"]
+    eigen_iban = bedrijf["iban"]
+
+    if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
+        st.error("Please fill in all client fields before generating the invoice.")
+        st.stop()
+
+    vandaag = datetime.today()
+    factuurdatum = vandaag.strftime("%d-%m-%Y")
+    factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
+
+    # -----------------------------------------------------
+    # PREPARE DATA
+    # -----------------------------------------------------
+    df_assign = df_month[df_month["type"] != "Travel"].copy()
+    df_assign["hours"] = df_assign.apply(
+        lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+        axis=1
+    )
+
+    assign_summary = (
+        df_assign.groupby("assignment")
+        .agg(
+            total_hours=("hours", "sum"),
+            hourly_rate=("rate", "first"),
+            total_amount=("amount", "sum")
+        )
+        .reset_index()
+    )
+
+    travel_summary = (
+        df_month[df_month["type"] == "Travel"]
+        .groupby("area")["travel_cost"]
+        .sum()
+        .reset_index()
+    )
+
+    df_area = df_month[df_month["type"] != "Travel"].copy()
+    df_area["hours"] = df_area.apply(
+        lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
+        axis=1
+    )
+
+    area_summary = (
+        df_area.groupby(["area", "assignment"])
+        .agg(
+            total_hours=("hours", "sum"),
+            hourly_rate=("rate", "first"),
+            total_amount=("amount", "sum")
+        )
+        .reset_index()
+    )
+
+    travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
+    final_total = total + travel_total
+
+    # -----------------------------------------------------
+    # PDF BUILD
+    # -----------------------------------------------------
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=20 * mm,
+        rightMargin=20 * mm,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    # REDUCED LINE SPACING
+    normal = ParagraphStyle(
+        "normal",
+        parent=styles["Normal"],
+        leading=10
+    )
+
+    small_normal = ParagraphStyle(
+        "small_normal",
+        parent=normal,
+        fontSize=8,
+        leading=9
+    )
+
+    body = ParagraphStyle(
+        "body",
+        parent=styles["BodyText"],
+        leading=10
+    )
+
+    title_style = ParagraphStyle(
+        "title_style",
+        parent=styles["Heading1"],
+        fontSize=20,
+        textColor=colors.blue,
+        alignment=2
+    )
+
+    right_text = ParagraphStyle(
+        "right_text",
+        parent=normal,
+        alignment=2
+    )
+
+    bold = ParagraphStyle(
+        "bold",
+        parent=styles["Heading4"],
+        fontSize=12,
+        spaceAfter=2
+    )
+
+    heading_center = ParagraphStyle(
+        "heading_center",
+        parent=styles["Heading1"],
+        fontSize=20,
+        alignment=1,
+        textColor=colors.blue,
+    )
+
+    indent1 = ParagraphStyle(
+        "indent1",
+        parent=normal,
+        leftIndent=15
+    )
+    indent2 = ParagraphStyle(
+        "indent2",
+        parent=normal,
+        leftIndent=30
+    )
+
+    red_total = ParagraphStyle(
+        "red_total",
+        parent=right_text,
+        textColor=colors.red,
+        fontSize=12
+    )
+
+    story = []
+
+    # -----------------------------------------------------
+    # PAGE 1 HEADER
+    # -----------------------------------------------------
+    story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
+    story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", right_text))
+    story.append(Paragraph(f"Datum: {factuurdatum}", right_text))
+    story.append(Spacer(1, 6))
+
+    # OPDRACHTGEVER
+    story.append(Paragraph("<b>Opdrachtgever</b>", bold))
+    story.append(Paragraph(klant_naam, normal))
+    story.append(Paragraph(klant_adres, normal))
+    story.append(Paragraph(f"{klant_postcode} {klant_stad}", normal))
+    story.append(Spacer(1, 6))
+
+    # OPDRACHTNEMER — SMALLER FONT
+    story.append(Paragraph("<b>Opdrachtnemer</b>", bold))
+    story.append(Paragraph(eigen_naam, small_normal))
+    story.append(Paragraph(eigen_adres, small_normal))
+    story.append(Paragraph(f"{eigen_postcode} {eigen_stad}", small_normal))
+    story.append(Paragraph(f"Telefoon: {eigen_mobiel}", small_normal))
+    story.append(Paragraph(f"E-mail: {eigen_email}", small_normal))
+    story.append(Paragraph(f"KvK: {eigen_kvk}", small_normal))
+    story.append(Paragraph(f"BTW: {eigen_btw}", small_normal))
+    story.append(Paragraph(f"IBAN: {eigen_iban}", small_normal))
+    story.append(Spacer(1, 10))
+
+    # -----------------------------------------------------
+    # TABLE 1 — WORK SUMMARY
+    # -----------------------------------------------------
+    story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
+    story.append(Spacer(1, 4))
+
+    table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
+    for _, row in assign_summary.iterrows():
+        table1_data.append([
+            row["assignment"],
+            f"{row['total_hours']:.2f}",
+            f"{row['hourly_rate']:,.2f}",
+            f"{row['total_amount']:,.2f}",
         ])
 
-        # ---------------------------------------------------------
-        # COMPUTE HOURS + AMOUNT
-        # ---------------------------------------------------------
-        def compute_amount(row):
-            if row["type"] == "Deskwork":
-                return (row["hours_worked"] or 0) * (row["rate"] or 0)
-            elif row["type"] == "Fieldwork":
-                return (row["hours_per_round"] or 0) * (row["rate"] or 0)
-            elif row["type"] == "Extra":
-                return (row["hours_worked"] or 0) * (row["rate"] or 0)
-            else:
-                return row["travel_cost"] or 0
+    table1 = Table(table1_data, colWidths=[180, 60, 80, 80], hAlign="LEFT")
+    table1.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 0.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
+    ]))
+    story.append(table1)
+    story.append(Spacer(1, 10))
 
-        df["amount"] = df.apply(compute_amount, axis=1)
-        df["month"] = df["date"].apply(lambda d: d.strftime("%Y-%m"))
+    # -----------------------------------------------------
+    # TABLE 2 — TRAVEL COSTS
+    # -----------------------------------------------------
+    story.append(Paragraph("<b>Reiskosten</b>", bold))
+    story.append(Spacer(1, 4))
 
-        # ---------------------------------------------------------
-        # MONTH SELECTION
-        # ---------------------------------------------------------
-        st.subheader("Select month(s)")
-        months = sorted(df["month"].unique())
-        selected_months = st.multiselect("Months", months, default=[months[-1]])
+    if travel_summary.empty:
+        story.append(Paragraph("Geen reiskosten in deze periode.", normal))
+    else:
+        travel_data = [["Gebied", "Bedrag (€)"]]
+        for _, row in travel_summary.iterrows():
+            travel_data.append([
+                row["area"],
+                f"{row['travel_cost']:,.2f}",
+            ])
 
-        if not selected_months:
-            st.info("Select at least one month.")
-            st.stop()
+        table2 = Table(travel_data, colWidths=[220, 100], hAlign="LEFT")
+        table2.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+            ("FONTSIZE", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 0.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
+        ]))
+        story.append(table2)
 
-        df_month = df[df["month"].isin(selected_months)]
+    story.append(Spacer(1, 10))
 
-        # ---------------------------------------------------------
-        # TOTALS
-        # ---------------------------------------------------------
-        subtotal = df_month["amount"].sum()
-        vat = subtotal * 0.21
-        total = subtotal + vat
+    # -----------------------------------------------------
+    # PAGE BREAK
+    # -----------------------------------------------------
+    story.append(PageBreak())
 
-        st.metric("Subtotal", f"€ {subtotal:,.2f}")
-        st.metric("VAT 21%", f"€ {vat:,.2f}")
-        st.metric("Total", f"€ {total:,.2f}")
+    # -----------------------------------------------------
+    # PAGE 2 — AREA SUMMARY
+    # -----------------------------------------------------
+    story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading_center))
+    story.append(Spacer(1, 12))
 
-        st.markdown("---")
+    current_area = None
+    for _, row in area_summary.iterrows():
+        area = row["area"]
 
-        # ---------------------------------------------------------
-        # HOURS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Hours per assignment")
-
-        df_hours = df_month[df_month["type"] != "Travel"].copy()
-        df_hours["hours"] = df_hours.apply(
-            lambda r: (
-                r["hours_worked"]
-                if r["type"] in ["Deskwork", "Extra"]
-                else r["hours_per_round"]
-            ),
-            axis=1
-        )
-
-        hours_assignment = (
-            df_hours.groupby("assignment")["hours"]
-            .sum()
-            .reset_index()
-            .sort_values("hours", ascending=False)
-        )
-
-        st.dataframe(hours_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # TRAVEL COSTS TABLE
-        # ---------------------------------------------------------
-        st.subheader("Travel Costs")
-
-        df_travel = df_month[df_month["type"] == "Travel"]
-
-        if df_travel.empty:
-            st.info("No travel costs this month.")
-        else:
-            travel_table = df_travel[["date", "area", "travel_cost"]].sort_values("date")
-            st.dataframe(travel_table, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # EARNINGS PER ASSIGNMENT
-        # ---------------------------------------------------------
-        st.subheader("Total earnings per assignment")
-
-        earnings_assignment = (
-            df_month[df_month["type"] != "Travel"]
-            .groupby("assignment")["amount"]
-            .sum()
-            .reset_index()
-            .sort_values("amount", ascending=False)
-        )
-
-        st.dataframe(earnings_assignment, use_container_width=True)
-
-        st.markdown("---")
-
-        # ---------------------------------------------------------
-        # CLIENT INFO
-        # ---------------------------------------------------------
-        st.subheader("Client information (for invoice)")
-        klant_naam = st.text_input("Client name")
-        klant_adres = st.text_input("Client address")
-        klant_postcode = st.text_input("Client postcode")
-        klant_stad = st.text_input("Client city")
-
-        st.markdown("---")
-        # ---------------------------------------------------------
-        # PDF EXPORT (DUTCH INVOICE, 2 PAGES, AREA + ASSIGNMENT LIST)
-        # ---------------------------------------------------------
-        st.subheader("Export invoice as PDF")
-        
-        if st.button("Generate PDF"):
-            import random
-            import io
-            from reportlab.lib import colors
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.units import mm
-            from reportlab.platypus import (
-                SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-            )
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        
-            bedrijf = st.secrets["bedrijf"]
-        
-            eigen_naam = bedrijf["naam"]
-            eigen_adres = bedrijf["adres"]
-            eigen_postcode = bedrijf["postcode"]
-            eigen_stad = bedrijf["stad"]
-            eigen_mobiel = bedrijf["mobiel"]
-            eigen_email = bedrijf["email"]
-            eigen_kvk = bedrijf["kvk"]
-            eigen_btw = bedrijf["btw"]
-            eigen_iban = bedrijf["iban"]
-        
-            if not klant_naam or not klant_adres or not klant_postcode or not klant_stad:
-                st.error("Please fill in all client fields before generating the invoice.")
-                st.stop()
-        
-            vandaag = datetime.today()
-            factuurdatum = vandaag.strftime("%d-%m-%Y")
-            factuurnummer = vandaag.strftime("%Y%m%d") + "-" + str(random.randint(1000, 9999))
-        
-            # -----------------------------------------------------
-            # PREPARE DATA
-            # -----------------------------------------------------
-            df_assign = df_month[df_month["type"] != "Travel"].copy()
-            df_assign["hours"] = df_assign.apply(
-                lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
-                axis=1
-            )
-        
-            assign_summary = (
-                df_assign.groupby("assignment")
-                .agg(
-                    total_hours=("hours", "sum"),
-                    hourly_rate=("rate", "first"),
-                    total_amount=("amount", "sum")
-                )
-                .reset_index()
-            )
-        
-            travel_summary = (
-                df_month[df_month["type"] == "Travel"]
-                .groupby("area")["travel_cost"]
-                .sum()
-                .reset_index()
-            )
-        
-            df_area = df_month[df_month["type"] != "Travel"].copy()
-            df_area["hours"] = df_area.apply(
-                lambda r: r["hours_worked"] if r["type"] in ["Deskwork", "Extra"] else r["hours_per_round"],
-                axis=1
-            )
-        
-            area_summary = (
-                df_area.groupby(["area", "assignment"])
-                .agg(
-                    total_hours=("hours", "sum"),
-                    hourly_rate=("rate", "first"),
-                    total_amount=("amount", "sum")
-                )
-                .reset_index()
-            )
-        
-            travel_total = travel_summary["travel_cost"].sum() if not travel_summary.empty else 0
-            final_total = total + travel_total
-        
-            # -----------------------------------------------------
-            # PDF BUILD
-            # -----------------------------------------------------
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(
-                buffer,
-                pagesize=A4,
-                leftMargin=20 * mm,
-                rightMargin=20 * mm,
-                topMargin=20 * mm,
-                bottomMargin=20 * mm,
-            )
-        
-            styles = getSampleStyleSheet()
-            normal = styles["Normal"]
-            normal.italic = 0
-
-            # NEW SMALLER STYLE FOR COMPANY DETAILS
-            small_normal = ParagraphStyle(
-                "small_normal",
-                parent=normal,
-                fontSize=8
-            )
-        
-            body = styles["BodyText"]
-            body.italic = 0
-        
-            title_style = ParagraphStyle(
-                "title_style",
-                parent=styles["Heading1"],
-                fontSize=20,
-                textColor=colors.blue,
-                alignment=2,
-                italic=0
-            )
-        
-            right_text = ParagraphStyle(
-                "right_text",
-                parent=normal,
-                alignment=2,
-                italic=0
-            )
-        
-            bold = ParagraphStyle(
-                "bold",
-                parent=styles["Heading4"],
-                fontSize=12,
-                spaceAfter=4,
-                italic=0
-            )
-        
-            heading_center = ParagraphStyle(
-                "heading_center",
-                parent=styles["Heading1"],
-                fontSize=20,
-                alignment=1,
-                italic=0,
-                textColor=colors.blue,
-            )
-        
-            indent1 = ParagraphStyle(
-                "indent1",
-                parent=normal,
-                leftIndent=15,
-                italic=0
-            )
-            indent2 = ParagraphStyle(
-                "indent2",
-                parent=normal,
-                leftIndent=30,
-                italic=0
-            )
-        
-            red_total = ParagraphStyle(
-                "red_total",
-                parent=right_text,
-                textColor=colors.red,
-                fontSize=12,
-                italic=0
-            )
-        
-            story = []
-        
-            # -----------------------------------------------------
-            # PAGE 1 HEADER
-            # -----------------------------------------------------
-            story.append(Paragraph(f"Factuur {factuurnummer}", title_style))
-            story.append(Paragraph(f"Periode(s): {', '.join(selected_months)}", right_text))
-            story.append(Paragraph(f"Datum: {factuurdatum}", right_text))
-            story.append(Spacer(1, 12))
-        
-            # OPDRACHTGEVER
-            story.append(Paragraph("<b>Opdrachtgever</b>", bold))
-            story.append(Paragraph(klant_naam, normal))
-            story.append(Paragraph(klant_adres, normal))
-            story.append(Paragraph(f"{klant_postcode} {klant_stad}", normal))
-            story.append(Spacer(1, 12))
-        
-            # OPDRACHTNEMER — SMALLER FONT
-            story.append(Paragraph("<b>Opdrachtnemer</b>", bold))
-            story.append(Paragraph(eigen_naam, small_normal))
-            story.append(Paragraph(eigen_adres, small_normal))
-            story.append(Paragraph(f"{eigen_postcode} {eigen_stad}", small_normal))
-            story.append(Paragraph(f"Telefoon: {eigen_mobiel}", small_normal))
-            story.append(Paragraph(f"E-mail: {eigen_email}", small_normal))
-            story.append(Paragraph(f"KvK: {eigen_kvk}", small_normal))
-            story.append(Paragraph(f"BTW: {eigen_btw}", small_normal))
-            story.append(Paragraph(f"IBAN: {eigen_iban}", small_normal))
-            story.append(Spacer(1, 18))
-        
-            # -----------------------------------------------------
-            # TABLE 1 — WORK SUMMARY (SMALLER FONT)
-            # -----------------------------------------------------
-            story.append(Paragraph("<b>Overzicht werkzaamheden</b>", bold))
+        if area != current_area:
+            story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
             story.append(Spacer(1, 6))
-        
-            table1_data = [["Opdracht", "Uren", "Uurloon (€)", "Bedrag (€)"]]
-            for _, row in assign_summary.iterrows():
-                table1_data.append([
-                    row["assignment"],
-                    f"{row['total_hours']:.2f}",
-                    f"{row['hourly_rate']:,.2f}",
-                    f"{row['total_amount']:,.2f}",
-                ])
-        
-            table1 = Table(table1_data, colWidths=[180, 60, 80, 80], hAlign="LEFT")
-            table1.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 6),   # REDUCED FROM 8
-            ]))
-            story.append(table1)
-            story.append(Spacer(1, 18))
-        
-            # -----------------------------------------------------
-            # TABLE 2 — TRAVEL COSTS (SMALLER FONT)
-            # -----------------------------------------------------
-            story.append(Paragraph("<b>Reiskosten</b>", bold))
-            story.append(Spacer(1, 6))
-        
-            if travel_summary.empty:
-                story.append(Paragraph("Geen reiskosten in deze periode.", normal))
-            else:
-                travel_data = [["Gebied", "Bedrag (€)"]]
-                for _, row in travel_summary.iterrows():
-                    travel_data.append([
-                        row["area"],
-                        f"{row['travel_cost']:,.2f}",
-                    ])
-        
-                table2 = Table(travel_data, colWidths=[220, 100], hAlign="LEFT")
-                table2.setStyle(TableStyle([
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 6),   # REDUCED FROM 8
-                ]))
-                story.append(table2)
-        
-            story.append(Spacer(1, 18))
-        
-            # -----------------------------------------------------
-            # PAGE BREAK
-            # -----------------------------------------------------
-            story.append(PageBreak())
-        
-            # -----------------------------------------------------
-            # PAGE 2 — AREA SUMMARY
-            # -----------------------------------------------------
-            story.append(Paragraph("Uren en inkomsten per gebied en opdracht", heading_center))
-            story.append(Spacer(1, 12))
-        
-            current_area = None
-            for _, row in area_summary.iterrows():
-                area = row["area"]
-        
-                if area != current_area:
-                    story.append(Paragraph(f"<b>Gebied: {area}</b>", bold))
-                    story.append(Spacer(1, 6))
-                    current_area = area
-        
-                story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent1))
-                story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent2))
-                story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent2))
-                story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent2))
-                story.append(Spacer(1, 10))
-        
-            # -----------------------------------------------------
-            # FOOTER + TOTALS
-            # -----------------------------------------------------
-            def first_page(canvas, doc_obj):
-                canvas.saveState()
-            
-                canvas.setFont("Helvetica", 7)
-                x = doc_obj.leftMargin
-                y = 12 * mm
-                canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
-                canvas.setFont("Helvetica-Bold", 7)
-                canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
-                canvas.setFont("Helvetica", 7)
-            
-                tx = doc_obj.leftMargin + doc_obj.width
-                box_top = 65 * mm
-            
-                canvas.setFillColor(colors.black)
-                canvas.setFont("Helvetica", 10)
-            
-                canvas.drawRightString(tx, box_top - 5, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
-                canvas.drawRightString(tx, box_top - 20, f"BTW 21%: € {vat:,.2f}")
-                canvas.drawRightString(tx, box_top - 35, f"Totaal (excl. reiskosten): € {total:,.2f}")
-            
-                canvas.drawRightString(tx, box_top - 55, f"Reiskosten [1]: € {travel_total:,.2f}")
-            
-                canvas.setFont("Helvetica-Bold", 12)
-                canvas.setFillColor(colors.red)
-                canvas.drawRightString(tx, box_top - 75, f"Eindtotaal [2]: € {final_total:,.2f}")
-            
-                canvas.restoreState()
-        
-            def later_pages(canvas, doc_obj):
-                pass
-        
-            doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
-            buffer.seek(0)
-        
-            st.download_button(
-                "Download PDF",
-                buffer,
-                file_name=f"factuur_{factuurnummer}.pdf",
-                mime="application/pdf",
-            )
+            current_area = area
+
+        story.append(Paragraph(f"- Opdracht: {row['assignment']}", indent1))
+        story.append(Paragraph(f"Uren: {row['total_hours']:.2f}", indent2))
+        story.append(Paragraph(f"Uurloon: € {row['hourly_rate']:,.2f}", indent2))
+        story.append(Paragraph(f"Bedrag: € {row['total_amount']:,.2f}", indent2))
+        story.append(Spacer(1, 10))
+
+    # -----------------------------------------------------
+    # FOOTER + TOTALS
+    # -----------------------------------------------------
+    def first_page(canvas, doc_obj):
+        canvas.saveState()
+
+        canvas.setFont("Helvetica", 7)
+        x = doc_obj.leftMargin
+        y = 12 * mm
+        canvas.drawString(x, y + 8, "[1] Reiskosten zijn vrijgesteld van BTW.")
+        canvas.setFont("Helvetica-Bold", 7)
+        canvas.drawString(x, y, "[2] Betalingstermijn bedraagt 14 dagen na factuurdatum.")
+        canvas.setFont("Helvetica", 7)
+
+        tx = doc_obj.leftMargin + doc_obj.width
+        box_top = 65 * mm
+
+        canvas.setFillColor(colors.black)
+        canvas.setFont("Helvetica", 10)
+
+        canvas.drawRightString(tx, box_top - 5, f"Subtotaal werkzaamheden: € {subtotal:,.2f}")
+        canvas.drawRightString(tx, box_top - 20, f"BTW 21%: € {vat:,.2f}")
+        canvas.drawRightString(tx, box_top - 35, f"Totaal (excl. reiskosten): € {total:,.2f}")
+
+        canvas.drawRightString(tx, box_top - 55, f"Reiskosten [1]: € {travel_total:,.2f}")
+
+        canvas.setFont("Helvetica-Bold", 12)
+        canvas.setFillColor(colors.red)
+        canvas.drawRightString(tx, box_top - 75, f"Eindtotaal [2]: € {final_total:,.2f}")
+
+        canvas.restoreState()
+
+    def later_pages(canvas, doc_obj):
+        pass
+
+    doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
+    buffer.seek(0)
+
+    st.download_button(
+        "Download PDF",
+        buffer,
+        file_name=f"factuur_{factuurnummer}.pdf",
+        mime="application/pdf",
+    )
+
 
 
 
