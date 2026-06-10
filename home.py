@@ -966,7 +966,7 @@ elif subpage == "Planning":
                     "travel_cost": None
                 }).execute()
 
-                supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
+                # supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
 
                 st.success("Planned round confirmed and moved to rounds.")
                 refresh()
