@@ -843,12 +843,12 @@ elif subpage == "Planning":
 
         df_planned = pd.DataFrame(rows).sort_values("planned_date")
 
-        # List view
-        for _, row in df_planned.iterrows():
-            st.markdown(
-                f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
-                f"• {row['area']} — {row['assignment']}"
-            )
+        # # List view
+        # for _, row in df_planned.iterrows():
+        #     st.markdown(
+        #         f"**📅 {row['planned_date'].isoformat()} ({row['relative']})**  \n"
+        #         f"• {row['area']} — {row['assignment']}"
+        #     )
 
 
         from streamlit_calendar import calendar
