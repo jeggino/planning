@@ -903,14 +903,21 @@ elif subpage == "Planning":
 
         st.subheader("Edit, delete or confirm a planned round")
 
+        df_editable = df_planned[df_planned["done"] == False]
+        
+        if df_editable.empty:
+            st.info("All planned rounds are already done.")
+            st.stop()
+        
         labels = [
             f"{row['planned_date'].isoformat()} — {row['area']} — {row['assignment']} ({row['relative']})"
-            for _, row in df_planned.iterrows()
+            for _, row in df_editable.iterrows()
         ]
+
 
         selected_label = st.selectbox("Select planned round", labels)
         idx = labels.index(selected_label)
-        row = df_planned.iloc[idx]
+        row = df_editable.iloc[idx]
 
         current_assignment = next(a for a in fieldwork_assignments if a["id"] == row["assignment_id"])
         current_area = next(a for a in areas if a["id"] == row["area_id"])
