@@ -836,8 +836,10 @@ elif subpage == "Planning":
                 "assignment": r["assignments"]["name"] if r["assignments"] else None,
                 "area": r["areas"]["name"] if r["areas"] else None,
                 "days_diff": diff,
-                "relative": rel
+                "relative": rel,
+                "done": r.get("done", False)
             })
+
 
         df_planned = pd.DataFrame(rows).sort_values("planned_date")
 
@@ -860,7 +862,9 @@ elif subpage == "Planning":
                 "start": r["planned_date"].isoformat(),
                 "allDay": True,
                 "id": r["id"],
+                "color": "#4CAF50" if r.get("done") else None,  # green if done
             })
+
         
         calendar_options = {
             "initialView": "dayGridMonth",
@@ -958,6 +962,7 @@ elif subpage == "Planning":
 
         with col_c:
             if st.button("Confirm done", key=f"btn_confirm_planning_{row['id']}"):
+                # Insert into rounds table
                 supabase.table("rounds").insert({
                     "assignment_id": row["assignment_id"],
                     "area_id": row["area_id"],
@@ -965,11 +970,15 @@ elif subpage == "Planning":
                     "hours_worked": None,
                     "travel_cost": None
                 }).execute()
-
-                # supabase.table("planned_rounds").delete().eq("id", row["id"]).execute()
-
-                st.success("Planned round confirmed and moved to rounds.")
+        
+                # NEW: mark planned round as done
+                supabase.table("planned_rounds").update({
+                    "done": True
+                }).eq("id", row["id"]).execute()
+        
+                st.success("Planned round confirmed, marked as done, and moved to rounds.")
                 refresh()
+
 
 
 
